@@ -30,3 +30,41 @@
 *.exe
 *.out
 *.app
+
+# Debug files
+*.dSYM/
+*.debug
+
+# VSCode settings and build output
+.vscode/
+.vscode/*
+
+# Sublime settings
+*.sublime-workspace
+*.sublime-project
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.swo
+*.bak
+*~
+
+# Dependency directories
+node_modules/
+vendor/
+build/
+dist/
+bin/
+obj/
+
+# Package managers
+*.lock
