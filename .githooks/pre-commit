@@ -1,0 +1,21 @@
+#!/bin/bash
+
+COMMENT="/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/"
+
+# Check for newly added .cpp, .h, .c, .hpp files
+for file in $(git diff --cached --name-only --diff-filter=A | grep -E '\.(cpp|hpp|h|c)$'); do
+    if ! grep -q "CS60002 - Distributed Systems" "$file"; then
+        echo -e "$COMMENT\n$(cat "$file")" > "$file"
+        git add "$file"
+    fi
+done
