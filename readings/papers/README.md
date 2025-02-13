@@ -12,6 +12,7 @@
 11. [Youtube Video 3](https://www.youtube.com/watch?v=4_qu1F9BXow)
 12. [Blog 6](https://www.linkedin.com/pulse/design-dropboxgoogle-drive-system-aman-lalwani-fkbuc/)
 13. [Youtube Video 4 - 1](https://www.youtube.com/watch?v=h3vWyiRBZHc&list=PLxQ8cCJ6LyOa4ZAAavc68dcndKRINwAsG&index=2&t=3s) | [Youtube Video 4 - 2](https://www.youtube.com/watch?v=XZ36_kgGw7Y&list=PLxQ8cCJ6LyOa4ZAAavc68dcndKRINwAsG&index=3)
+14. [Blog 7](https://systemdesignprimer.com/dropbox-system-design/)
 
 # Popular Implementation of Distributed Storage Service
 
