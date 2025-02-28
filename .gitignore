@@ -68,3 +68,8 @@ obj/
 
 # Package managers
 *.lock
+
+# Mac files
+.DS_Store
+.AppleDouble
+.LSOverride
