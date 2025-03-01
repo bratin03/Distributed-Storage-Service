@@ -13,7 +13,7 @@
 
 7. [Blog 5](https://nikhilgupta1.medium.com/design-dropbox-google-drive-81cd343571a8) [@Soukhin-Nayek]
 
-8. [Youtube Video 2](https://www.youtube.com/watch?v=_UZ1ngy-kOI) [@Soukhin-Nayek]
+8. [Youtube Video 2](https://www.youtube.com/watch?v=_UZ1ngy-kOI) [@Soukhin-Nayek] [annotated pdf](\papers\System_Design_Interview_DropBox.pdf) [notionpage](https://www.notion.so/Youtube-Video-1a8daf58fb1981429583df6cf7a75b19?pvs=4)
 
 9. [GFG Blog](https://www.geeksforgeeks.org/design-dropbox-a-system-design-interview-question/) [@SwarnabhM]
 
