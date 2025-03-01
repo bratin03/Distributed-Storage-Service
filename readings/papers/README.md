@@ -9,7 +9,7 @@
 
 5. [Blog 3](https://www.linkedin.com/pulse/how-does-storage-work-distributed-systems-system-design-us/) [@bratin03]
 
-6. [Blog 4](http://cncf.io/blog/2019/11/04/building-a-large-scale-distributed-storage-system-based-on-raft/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek] [Annotated Pdf](/papers/Large-Scale_Distributed_Storage_Raft_CNCF.pdf)
+6. [Blog 4](http://cncf.io/blog/2019/11/04/building-a-large-scale-distributed-storage-system-based-on-raft/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek] [Annotated Pdf](Large-Scale_Distributed_Storage_Raft_CNCF.pdf)
 
 7. [Blog 5](https://nikhilgupta1.medium.com/design-dropbox-google-drive-81cd343571a8) [@Soukhin-Nayek] [annotatedPDF](Blog_5_annotated_general_topics.pdf) [nptionPage](https://www.notion.so/Blog-5-1a9daf58fb19806f8606c7ae9a7f6cf8?pvs=4)
 
