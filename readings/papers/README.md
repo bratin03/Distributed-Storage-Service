@@ -11,9 +11,9 @@
 
 6. [Blog 4](http://cncf.io/blog/2019/11/04/building-a-large-scale-distributed-storage-system-based-on-raft/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek] [Annotated Pdf](Large-Scale_Distributed_Storage_Raft_CNCF.pdf)
 
-7. [Blog 5](https://nikhilgupta1.medium.com/design-dropbox-google-drive-81cd343571a8) [@Soukhin-Nayek] [annotatedPDF](Blog_5_annotated_general_topics.pdf) [nptionPage](https://www.notion.so/Blog-5-1a9daf58fb19806f8606c7ae9a7f6cf8?pvs=4)
+7. [Blog 5](https://nikhilgupta1.medium.com/design-dropbox-google-drive-81cd343571a8) [@Soukhin-Nayek] [annotatedPDF](Blog_5_annotated_general_topics.pdf) [notionPage](https://www.notion.so/Blog-5-1a9daf58fb19806f8606c7ae9a7f6cf8?pvs=4)
 
-8. [Youtube Video 2](https://www.youtube.com/watch?v=_UZ1ngy-kOI) [@Soukhin-Nayek] [annotated pdf](System_Design_Interview_DropBox.pdf) [notionPage](https://www.notion.so/Youtube-Video-1a8daf58fb1981429583df6cf7a75b19?pvs=4)
+8. [Youtube Video 2](https://www.youtube.com/watch?v=_UZ1ngy-kOI) [@Soukhin-Nayek] [Annotated Pdf](System_Design_Interview_DropBox.pdf) [Notion Page](https://www.notion.so/Youtube-Video-1a8daf58fb1981429583df6cf7a75b19?pvs=4)
 
 9. [GFG Blog](https://www.geeksforgeeks.org/design-dropbox-a-system-design-interview-question/) [@SwarnabhM]
 
@@ -23,7 +23,7 @@
 
 13. [Youtube Video 4 - 1](https://www.youtube.com/watch?v=h3vWyiRBZHc&list=PLxQ8cCJ6LyOa4ZAAavc68dcndKRINwAsG&index=2&t=3s) | [Youtube Video 4 - 2](https://www.youtube.com/watch?v=XZ36_kgGw7Y&list=PLxQ8cCJ6LyOa4ZAAavc68dcndKRINwAsG&index=3) [@SwarnabhM]
 
-14. [Blog 7](https://systemdesignprimer.com/dropbox-system-design/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek]
+14. [Blog 7](https://systemdesignprimer.com/dropbox-system-design/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek] [Annotated Pdf](Dropbox_System_Design_Primer.pdf) <span style="color:green">This is an excellent blog to understand the system design of Dropbox and design the architecture of the Storage Service - Bratin</span>
 
 # Popular Implementation of Distributed Storage Service
 >> Put this on hold until final allocation of topics
