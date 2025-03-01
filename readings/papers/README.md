@@ -9,7 +9,7 @@
 
 5. [Blog 3](https://www.linkedin.com/pulse/how-does-storage-work-distributed-systems-system-design-us/) [@bratin03]
 
-6. [Blog 4](http://cncf.io/blog/2019/11/04/building-a-large-scale-distributed-storage-system-based-on-raft/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek]
+6. [Blog 4](http://cncf.io/blog/2019/11/04/building-a-large-scale-distributed-storage-system-based-on-raft/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek] [Annotated Pdf](/papers/Large-Scale_Distributed_Storage_Raft_CNCF.pdf)
 
 7. [Blog 5](https://nikhilgupta1.medium.com/design-dropbox-google-drive-81cd343571a8) [@Soukhin-Nayek]
 
@@ -26,6 +26,7 @@
 14. [Blog 7](https://systemdesignprimer.com/dropbox-system-design/) [@bratin03] [@SwarnabhM] [@Soukhin-Nayek]
 
 # Popular Implementation of Distributed Storage Service
+>> Put this on hold until final allocation of topics
 
 ## Amazon S3 [@bratin03](https://github.com/bratin03)
 1. [Amazon S3 Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/GetStartedWithS3.html)
