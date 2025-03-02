@@ -47,3 +47,4 @@
 2. [Dropbox Documentation](https://www.dropbox.com/developers/documentation/)
 3. [Blog 2](https://dev.to/zeeshanali0704/design-dropbox-3ohf)
 4. [Blog 3](https://www.bigtech.coach/common-interview-system-designs/filesharing-systems/dropbox)
+5. [Blog 4](https://dropbox.tech/infrastructure/streaming-file-synchronization)
