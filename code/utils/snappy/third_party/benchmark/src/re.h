@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2015 Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

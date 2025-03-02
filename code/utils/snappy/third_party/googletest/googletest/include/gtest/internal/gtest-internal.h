@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2005, Google Inc.
 // All rights reserved.
 //
@@ -616,8 +605,7 @@ class GTEST_API_ TypedTestSuitePState {
     if (registered_) {
       fprintf(stderr,
               "%s Test %s must be defined before "
-              "REGISTER_TYPED_TEST_SUITE_P(%s, ...).
-",
+              "REGISTER_TYPED_TEST_SUITE_P(%s, ...).\n",
               FormatFileLocation(file, line).c_str(), test_name, case_name);
       fflush(stderr);
       posix::Abort();
@@ -738,7 +726,7 @@ class TypeParameterizedTest {
     // First, registers the first type-parameterized test in the type
     // list.
     MakeAndRegisterTestInfo(
-        (std::string(prefix) + (prefix[0] == ' ' ? "" : "/") + case_name +
+        (std::string(prefix) + (prefix[0] == '\0' ? "" : "/") + case_name +
          "/" + type_names[static_cast<size_t>(index)])
             .c_str(),
         StripTrailingSpaces(GetPrefixUntilComma(test_names)).c_str(),
@@ -967,7 +955,7 @@ IsContainer IsContainerTest(int /* dummy */) {
 typedef char IsNotContainer;
 template <class C>
 IsNotContainer IsContainerTest(long /* dummy */) {
-  return ' ';
+  return '\0';
 }
 
 // Trait to detect whether a type T is a hash table.
@@ -1414,8 +1402,7 @@ class NeverThrown {
              e) {                                                              \
     gtest_msg.value = "Expected: " #statement                                  \
                       " throws an exception of type " #expected_exception      \
-                      ".
-  Actual: it throws ";                               \
+                      ".\n  Actual: it throws ";                               \
     gtest_msg.value += GTEST_EXCEPTION_TYPE_(e);                               \
     gtest_msg.value += " with description \"";                                 \
     gtest_msg.value += e.what();                                               \
@@ -1442,15 +1429,13 @@ class NeverThrown {
     catch (...) {                                                           \
       gtest_msg.value = "Expected: " #statement                             \
                         " throws an exception of type " #expected_exception \
-                        ".
-  Actual: it throws a different type.";         \
+                        ".\n  Actual: it throws a different type.";         \
       goto GTEST_CONCAT_TOKEN_(gtest_label_testthrow_, __LINE__);           \
     }                                                                       \
     if (!gtest_caught_expected) {                                           \
       gtest_msg.value = "Expected: " #statement                             \
                         " throws an exception of type " #expected_exception \
-                        ".
-  Actual: it throws nothing.";                  \
+                        ".\n  Actual: it throws nothing.";                  \
       goto GTEST_CONCAT_TOKEN_(gtest_label_testthrow_, __LINE__);           \
     }                                                                       \
   } else /*NOLINT*/                                                         \
@@ -1488,8 +1473,7 @@ class NeverThrown {
     }                                                                    \
   } else                                                                 \
     GTEST_CONCAT_TOKEN_(gtest_label_testnothrow_, __LINE__)              \
-        : fail(("Expected: " #statement " doesn't throw an exception.
-" \
+        : fail(("Expected: " #statement " doesn't throw an exception.\n" \
                 "  Actual: " +                                           \
                 gtest_msg.value)                                         \
                    .c_str())
@@ -1509,8 +1493,7 @@ class NeverThrown {
   } else                                                             \
     GTEST_CONCAT_TOKEN_(gtest_label_testanythrow_, __LINE__)         \
         : fail("Expected: " #statement                               \
-               " throws an exception.
-"                             \
+               " throws an exception.\n"                             \
                "  Actual: it doesn't.")
 
 // Implements Boolean test assertions such as EXPECT_TRUE. expression can be
@@ -1538,8 +1521,7 @@ class NeverThrown {
     GTEST_CONCAT_TOKEN_(gtest_label_testnofatal_, __LINE__)                    \
         : fail("Expected: " #statement                                         \
                " doesn't generate new fatal "                                  \
-               "failures in the current thread.
-"                             \
+               "failures in the current thread.\n"                             \
                "  Actual: it does.")
 
 // Expands to the name of the class that implements the given test.

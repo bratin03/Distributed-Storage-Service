@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2006, Google Inc.
 // All rights reserved.
 //
@@ -101,8 +90,7 @@ AssertionResult AssertPred1Helper(const char* pred_text, const char* e1,
 
   return AssertionFailure()
          << pred_text << "(" << e1 << ") evaluates to false, where"
-         << "
-"
+         << "\n"
          << e1 << " evaluates to " << ::testing::PrintToString(v1);
 }
 
@@ -135,10 +123,8 @@ AssertionResult AssertPred2Helper(const char* pred_text, const char* e1,
   return AssertionFailure()
          << pred_text << "(" << e1 << ", " << e2
          << ") evaluates to false, where"
-         << "
-"
-         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "
-"
+         << "\n"
+         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "\n"
          << e2 << " evaluates to " << ::testing::PrintToString(v2);
 }
 
@@ -174,12 +160,9 @@ AssertionResult AssertPred3Helper(const char* pred_text, const char* e1,
   return AssertionFailure()
          << pred_text << "(" << e1 << ", " << e2 << ", " << e3
          << ") evaluates to false, where"
-         << "
-"
-         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "
-"
-         << e2 << " evaluates to " << ::testing::PrintToString(v2) << "
-"
+         << "\n"
+         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "\n"
+         << e2 << " evaluates to " << ::testing::PrintToString(v2) << "\n"
          << e3 << " evaluates to " << ::testing::PrintToString(v3);
 }
 
@@ -217,14 +200,10 @@ AssertionResult AssertPred4Helper(const char* pred_text, const char* e1,
   return AssertionFailure()
          << pred_text << "(" << e1 << ", " << e2 << ", " << e3 << ", " << e4
          << ") evaluates to false, where"
-         << "
-"
-         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "
-"
-         << e2 << " evaluates to " << ::testing::PrintToString(v2) << "
-"
-         << e3 << " evaluates to " << ::testing::PrintToString(v3) << "
-"
+         << "\n"
+         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "\n"
+         << e2 << " evaluates to " << ::testing::PrintToString(v2) << "\n"
+         << e3 << " evaluates to " << ::testing::PrintToString(v3) << "\n"
          << e4 << " evaluates to " << ::testing::PrintToString(v4);
 }
 
@@ -264,16 +243,11 @@ AssertionResult AssertPred5Helper(const char* pred_text, const char* e1,
   return AssertionFailure()
          << pred_text << "(" << e1 << ", " << e2 << ", " << e3 << ", " << e4
          << ", " << e5 << ") evaluates to false, where"
-         << "
-"
-         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "
-"
-         << e2 << " evaluates to " << ::testing::PrintToString(v2) << "
-"
-         << e3 << " evaluates to " << ::testing::PrintToString(v3) << "
-"
-         << e4 << " evaluates to " << ::testing::PrintToString(v4) << "
-"
+         << "\n"
+         << e1 << " evaluates to " << ::testing::PrintToString(v1) << "\n"
+         << e2 << " evaluates to " << ::testing::PrintToString(v2) << "\n"
+         << e3 << " evaluates to " << ::testing::PrintToString(v3) << "\n"
+         << e4 << " evaluates to " << ::testing::PrintToString(v4) << "\n"
          << e5 << " evaluates to " << ::testing::PrintToString(v5);
 }
 

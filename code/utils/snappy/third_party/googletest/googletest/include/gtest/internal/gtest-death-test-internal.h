@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2005, Google Inc.
 // All rights reserved.
 //
@@ -212,10 +201,8 @@ inline Matcher<const ::std::string&> MakeDeathTestMatcher(
   } catch (const ::std::exception& gtest_exception) {                        \
     fprintf(                                                                 \
         stderr,                                                              \
-        "
-%s: Caught std::exception-derived exception escaping the "        \
-        "death test statement. Exception message: %s
-",                     \
+        "\n%s: Caught std::exception-derived exception escaping the "        \
+        "death test statement. Exception message: %s\n",                     \
         ::testing::internal::FormatFileLocation(__FILE__, __LINE__).c_str(), \
         gtest_exception.what());                                             \
     fflush(stderr);                                                          \

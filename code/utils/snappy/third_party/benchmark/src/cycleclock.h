@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // ----------------------------------------------------------------------
 // CycleClock
 //    A CycleClock tells you the current time in Cycles.  The "time"
@@ -102,10 +91,8 @@ inline BENCHMARK_ALWAYS_INLINE int64_t Now() {
 #else
   uint32_t tbl, tbu0, tbu1;
   asm volatile(
-      "mftbu %0
-"
-      "mftb %1
-"
+      "mftbu %0\n"
+      "mftb %1\n"
       "mftbu %2"
       : "=r"(tbu0), "=r"(tbl), "=r"(tbu1));
   tbl &= -static_cast<int32_t>(tbu0 == tbu1);
@@ -207,20 +194,13 @@ inline BENCHMARK_ALWAYS_INLINE int64_t Now() {
   // This asm also includes the PowerPC overflow handling strategy, as above.
   // Implemented in assembly because Clang insisted on branching.
   asm volatile(
-      "rdcycleh %0
-"
-      "rdcycle %1
-"
-      "rdcycleh %2
-"
-      "sub %0, %0, %2
-"
-      "seqz %0, %0
-"
-      "sub %0, zero, %0
-"
-      "and %1, %1, %0
-"
+      "rdcycleh %0\n"
+      "rdcycle %1\n"
+      "rdcycleh %2\n"
+      "sub %0, %0, %2\n"
+      "seqz %0, %0\n"
+      "sub %0, zero, %0\n"
+      "and %1, %1, %0\n"
       : "=r"(cycles_hi0), "=r"(cycles_lo), "=r"(cycles_hi1));
   return (static_cast<uint64_t>(cycles_hi1) << 32) | cycles_lo;
 #else

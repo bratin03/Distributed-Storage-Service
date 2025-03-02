@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2008 Google Inc. All Rights Reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -256,10 +245,8 @@ static inline std::pair<size_t, bool> FindMatchLength(const char* s1,
       // use a conditional move (it's tuned to cut data dependencies). In this
       // case there is a longer parallel chain anyway AND this will be fairly
       // unpredictable.
-      asm("testl %k2, %k2
-	"
-          "cmovzq %1, %0
-	"
+      asm("testl %k2, %k2\n\t"
+          "cmovzq %1, %0\n\t"
           : "+r"(a2)
           : "r"(a3), "r"(xorval)
           : "cc");
@@ -292,10 +279,8 @@ static inline std::pair<size_t, bool> FindMatchLength(const char* s1,
 #ifndef __x86_64__
       a2 = static_cast<uint32_t>(xorval) == 0 ? a3 : a2;
 #else
-      asm("testl %k2, %k2
-	"
-          "cmovzq %1, %0
-	"
+      asm("testl %k2, %k2\n\t"
+          "cmovzq %1, %0\n\t"
           : "+r"(a2)
           : "r"(a3), "r"(xorval)
           : "cc");

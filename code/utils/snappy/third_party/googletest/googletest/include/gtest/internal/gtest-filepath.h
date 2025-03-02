@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2008, Google Inc.
 // All rights reserved.
 //
@@ -144,7 +133,7 @@ class GTEST_API_ FilePath {
   // RemoveFileName returns the directory path with the filename removed.
   // Example: FilePath("path/to/file").RemoveFileName() returns "path/to/".
   // If the FilePath is "a_file" or "/a_file", RemoveFileName returns
-  // FilePath("./") or, on Windows, FilePath(".\"). If the filepath does
+  // FilePath("./") or, on Windows, FilePath(".\\"). If the filepath does
   // not have a file, like "just/a/dir/", it returns the FilePath unmodified.
   // On Windows platform, '\' is the path separator, otherwise it is '/'.
   FilePath RemoveFileName() const;
@@ -205,8 +194,8 @@ class GTEST_API_ FilePath {
   // a pathname from directory syntax (trailing separator) to filename syntax.
   //
   // On Windows this method also replaces the alternate path separator '/' with
-  // the primary path separator '\', so that for example "bar\/\foo" becomes
-  // "bar\foo".
+  // the primary path separator '\\', so that for example "bar\\/\\foo" becomes
+  // "bar\\foo".
 
   void Normalize();
 
@@ -221,7 +210,7 @@ class GTEST_API_ FilePath {
   // - [Windows] "..\Sibling" => 0
   // - [Windows] "\Windows" => 1
   // - [Windows] "C:/Windows\Notepad.exe" => 3
-  // - [Windows] "\Host\Share\C$/Windows" => 13
+  // - [Windows] "\\Host\Share\C$/Windows" => 13
   // - [UNIX] "/bin" => 1
   size_t CalculateRootLength() const;
 

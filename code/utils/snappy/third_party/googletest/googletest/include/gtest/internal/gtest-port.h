@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2005, Google Inc.
 // All rights reserved.
 //
@@ -188,7 +177,7 @@
 //                            GTEST_HAS_POSIX_RE (see above) which users can
 //                            define themselves.
 //   GTEST_USES_SIMPLE_RE   - our own simple regex is used;
-//                            the above RE(s) are mutually exclusive.
+//                            the above RE\b(s) are mutually exclusive.
 
 // Misc public macros
 // ------------------
@@ -1915,7 +1904,7 @@ class GTEST_API_ ThreadLocal {
 GTEST_API_ size_t GetThreadCount();
 
 #if GTEST_OS_WINDOWS
-#define GTEST_PATH_SEP_ "\"
+#define GTEST_PATH_SEP_ "\\"
 #define GTEST_HAS_ALT_PATH_SEP_ 1
 #else
 #define GTEST_PATH_SEP_ "/"
@@ -2143,7 +2132,7 @@ inline const char* GetEnv(const char* name) {
   // Environment variables which we programmatically clear will be set to the
   // empty string rather than unset (NULL).  Handle that case.
   const char* const env = getenv(name);
-  return (env != nullptr && env[0] != ' ') ? env : nullptr;
+  return (env != nullptr && env[0] != '\0') ? env : nullptr;
 #else
   return getenv(name);
 #endif

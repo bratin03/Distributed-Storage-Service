@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2007, Google Inc.
 // All rights reserved.
 //
@@ -1094,8 +1083,7 @@ class TypedExpectation<R(Args...)> : public ExpectationBase {
     if (extra_matcher_specified_) {
       *os << "    Expected args: ";
       extra_matcher_.DescribeTo(os);
-      *os << "
-";
+      *os << "\n";
     }
   }
 
@@ -1149,10 +1137,8 @@ class TypedExpectation<R(Args...)> : public ExpectationBase {
     g_gmock_mutex.AssertHeld();
 
     if (is_retired()) {
-      *os << "         Expected: the expectation is active
-"
-          << "           Actual: it is retired
-";
+      *os << "         Expected: the expectation is active\n"
+          << "           Actual: it is retired\n";
     } else if (!Matches(args)) {
       if (!TupleMatches(matchers_, args)) {
         ExplainMatchFailureTupleTo(matchers_, args, os);
@@ -1161,37 +1147,30 @@ class TypedExpectation<R(Args...)> : public ExpectationBase {
       if (!extra_matcher_.MatchAndExplain(args, &listener)) {
         *os << "    Expected args: ";
         extra_matcher_.DescribeTo(os);
-        *os << "
-           Actual: don't match";
+        *os << "\n           Actual: don't match";
 
         internal::PrintIfNotEmpty(listener.str(), os);
-        *os << "
-";
+        *os << "\n";
       }
     } else if (!AllPrerequisitesAreSatisfied()) {
-      *os << "         Expected: all pre-requisites are satisfied
-"
+      *os << "         Expected: all pre-requisites are satisfied\n"
           << "           Actual: the following immediate pre-requisites "
-          << "are not satisfied:
-";
+          << "are not satisfied:\n";
       ExpectationSet unsatisfied_prereqs;
       FindUnsatisfiedPrerequisites(&unsatisfied_prereqs);
       int i = 0;
       for (ExpectationSet::const_iterator it = unsatisfied_prereqs.begin();
            it != unsatisfied_prereqs.end(); ++it) {
         it->expectation_base()->DescribeLocationTo(os);
-        *os << "pre-requisite #" << i++ << "
-";
+        *os << "pre-requisite #" << i++ << "\n";
       }
-      *os << "                   (end of pre-requisites)
-";
+      *os << "                   (end of pre-requisites)\n";
     } else {
       // This line is here just for completeness' sake.  It will never
       // be executed as currently the ExplainMatchResultTo() function
       // is called only when the mock function call does NOT match the
       // expectation.
-      *os << "The call matches the expectation.
-";
+      *os << "The call matches the expectation.\n";
     }
   }
 
@@ -1212,8 +1191,7 @@ class TypedExpectation<R(Args...)> : public ExpectationBase {
       // we warn the user when the WillOnce() clauses ran out.
       ::std::stringstream ss;
       DescribeLocationTo(&ss);
-      ss << "Actions ran out in " << source_text() << "...
-"
+      ss << "Actions ran out in " << source_text() << "...\n"
          << "Called " << count << " times, but only " << action_count
          << " WillOnce()" << (action_count == 1 ? " is" : "s are")
          << " specified - ";
@@ -1267,8 +1245,7 @@ class TypedExpectation<R(Args...)> : public ExpectationBase {
     if (!expectation_description.empty()) {
       *what << "\"" << expectation_description << "\" ";
     }
-    *what << "call matches " << source_text() << "...
-";
+    *what << "call matches " << source_text() << "...\n";
     return &(GetCurrentAction(mocker, args));
   }
 
@@ -1399,8 +1376,7 @@ class ReferenceOrValueWrapper<T&> {
 // Prints the held value as an action's result to os.
 template <typename T>
 void PrintAsActionResult(const T& result, std::ostream& os) {
-  os << "
-          Returns: ";
+  os << "\n          Returns: ";
   // T may be a reference type, so we don't use UniversalPrint().
   UniversalPrinter<T>::Print(result, &os);
 }
@@ -1488,8 +1464,7 @@ class FunctionMocker<R(Args...)> final : public UntypedFunctionMockerBase {
     }
     const std::string message =
         call_description +
-        "
-    The mock function has no default action "
+        "\n    The mock function has no default action "
         "set, and its return type has no default value set.";
 #if GTEST_HAS_EXCEPTIONS
     if (!DefaultValue<Result>::Exists()) {
@@ -1589,15 +1564,11 @@ class FunctionMocker<R(Args...)> final : public UntypedFunctionMockerBase {
     const OnCallSpec<F>* const spec = FindOnCallSpec(args);
 
     if (spec == nullptr) {
-      *os << (std::is_void<Result>::value ? "returning directly.
-"
-                                          : "returning default value.
-");
+      *os << (std::is_void<Result>::value ? "returning directly.\n"
+                                          : "returning default value.\n");
     } else {
-      *os << "taking default action specified at:
-"
-          << FormatFileLocation(spec->file(), spec->line()) << "
-";
+      *os << "taking default action specified at:\n"
+          << FormatFileLocation(spec->file(), spec->line()) << "\n";
     }
   }
 
@@ -1688,8 +1659,7 @@ class FunctionMocker<R(Args...)> final : public UntypedFunctionMockerBase {
                                          ::std::ostream* why) const
       GTEST_EXCLUSIVE_LOCK_REQUIRED_(g_gmock_mutex) {
     g_gmock_mutex.AssertHeld();
-    *os << "
-Unexpected mock function call - ";
+    *os << "\nUnexpected mock function call - ";
     DescribeDefaultActionTo(args, os);
     PrintTriedExpectationsLocked(args, why);
   }
@@ -1704,19 +1674,16 @@ Unexpected mock function call - ";
     *why << "Google Mock tried the following " << count << " "
          << (count == 1 ? "expectation, but it didn't match"
                         : "expectations, but none matched")
-         << ":
-";
+         << ":\n";
     for (size_t i = 0; i < count; i++) {
       TypedExpectation<F>* const expectation =
           static_cast<TypedExpectation<F>*>(untyped_expectations_[i].get());
-      *why << "
-";
+      *why << "\n";
       expectation->DescribeLocationTo(why);
       if (count > 1) {
         *why << "tried expectation #" << i << ": ";
       }
-      *why << expectation->source_text() << "...
-";
+      *why << expectation->source_text() << "...\n";
       expectation->ExplainMatchResultTo(args, why);
       expectation->DescribeCallCountTo(why);
     }
@@ -1873,8 +1840,7 @@ R FunctionMocker<R(Args...)>::InvokeWith(ArgumentTuple&& args)
   // We use RAII to do the latter in case R is void or a non-moveable type. In
   // either case we can't assign it to a local variable.
   const Cleanup handle_failures([&] {
-    ss << "
-" << why.str();
+    ss << "\n" << why.str();
 
     if (!found) {
       // No expectation matches this call - reports a failure.

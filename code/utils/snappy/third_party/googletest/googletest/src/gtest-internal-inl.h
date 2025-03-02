@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2005, Google Inc.
 // All rights reserved.
 //
@@ -1029,7 +1018,7 @@ bool ParseNaturalNumber(const ::std::string& str, Integer* number) {
   using BiggestConvertible = unsigned long long;  // NOLINT
 
   const BiggestConvertible parsed = strtoull(str.c_str(), &end, 10);  // NOLINT
-  const bool parse_success = *end == ' ' && errno == 0;
+  const bool parse_success = *end == '\0' && errno == 0;
 
   GTEST_CHECK_(sizeof(Integer) <= sizeof(parsed));
 
@@ -1083,8 +1072,7 @@ class StreamingListener : public EmptyTestEventListener {
     virtual void CloseConnection() {}
 
     // Sends a string and a newline to the socket.
-    void SendLn(const std::string& message) { Send(message + "
-"); }
+    void SendLn(const std::string& message) { Send(message + "\n"); }
   };
 
   // Concrete class for actually writing strings to a socket.
@@ -1132,8 +1120,7 @@ class StreamingListener : public EmptyTestEventListener {
     SocketWriter& operator=(const SocketWriter&) = delete;
   };  // class SocketWriter
 
-  // Escapes '=', '&', '%', and '
-' characters in str as "%xx".
+  // Escapes '=', '&', '%', and '\n' characters in str as "%xx".
   static std::string UrlEncode(const char* str);
 
   StreamingListener(const std::string& host, const std::string& port)

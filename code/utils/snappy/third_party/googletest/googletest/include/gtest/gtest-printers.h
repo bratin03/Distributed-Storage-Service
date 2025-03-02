@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2007, Google Inc.
 // All rights reserved.
 //
@@ -243,8 +232,7 @@ struct ProtobufPrinter {
   static void PrintValue(const T& value, ::std::ostream* os) {
     std::string pretty_str = value.ShortDebugString();
     if (pretty_str.length() > kProtobufOneLinerMaxLength) {
-      pretty_str = "
-" + value.DebugString();
+      pretty_str = "\n" + value.DebugString();
     }
     *os << ("<" + pretty_str + ">");
   }
@@ -474,8 +462,8 @@ inline void PrintTo(bool x, ::std::ostream* os) {
 
 // Overload for wchar_t type.
 // Prints a wchar_t as a symbol if it is printable or as its internal
-// code otherwise and also as its decimal code (except for L' ').
-// The L' ' char is printed as "L'\0'". The decimal code is printed
+// code otherwise and also as its decimal code (except for L'\0').
+// The L'\0' char is printed as "L'\\0'". The decimal code is printed
 // as signed integer when wchar_t is implemented by the compiler
 // as a signed type and is printed as an unsigned integer when wchar_t
 // is implemented as an unsigned type.

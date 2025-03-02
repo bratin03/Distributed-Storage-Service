@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2005, Google Inc.
 // All rights reserved.
 //
@@ -133,8 +122,7 @@ namespace testing {
 //       return testing::AssertionSuccess();
 //     else
 //       return testing::AssertionFailure()
-//         << "Expected: " << expr << " is even
-  Actual: it's " << n;
+//         << "Expected: " << expr << " is even\n  Actual: it's " << n;
 //   }
 //
 // If Foo() returns 5, you will see the following message:

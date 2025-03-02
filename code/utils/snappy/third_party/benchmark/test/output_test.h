@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 #ifndef TEST_OUTPUT_TEST_H
 #define TEST_OUTPUT_TEST_H
 
@@ -169,29 +158,23 @@ T Results::GetAs(const char* entry_name) const {
 
 #define CHECK_RESULT_VALUE_IMPL(entry, getfn, var_type, var_name, relationship, value) \
     CONCAT(BM_CHECK_, relationship)                                        \
-    (entry.getfn< var_type >(var_name), (value)) << "
-"                \
-    << __FILE__ << ":" << __LINE__ << ": " << (entry).name << ":
-"     \
+    (entry.getfn< var_type >(var_name), (value)) << "\n"                \
+    << __FILE__ << ":" << __LINE__ << ": " << (entry).name << ":\n"     \
     << __FILE__ << ":" << __LINE__ << ": "                              \
     << "expected (" << #var_type << ")" << (var_name)                   \
     << "=" << (entry).getfn< var_type >(var_name)                       \
-    << " to be " #relationship " to " << (value) << "
-"
+    << " to be " #relationship " to " << (value) << "\n"
 
 // check with tolerance. eps_factor is the tolerance window, which is
 // interpreted relative to value (eg, 0.1 means 10% of value).
 #define CHECK_FLOAT_RESULT_VALUE_IMPL(entry, getfn, var_type, var_name, relationship, value, eps_factor) \
     CONCAT(BM_CHECK_FLOAT_, relationship)                                  \
-    (entry.getfn< var_type >(var_name), (value), (eps_factor) * (value)) << "
-" \
-    << __FILE__ << ":" << __LINE__ << ": " << (entry).name << ":
-"     \
+    (entry.getfn< var_type >(var_name), (value), (eps_factor) * (value)) << "\n" \
+    << __FILE__ << ":" << __LINE__ << ": " << (entry).name << ":\n"     \
     << __FILE__ << ":" << __LINE__ << ": "                              \
     << "expected (" << #var_type << ")" << (var_name)                   \
     << "=" << (entry).getfn< var_type >(var_name)                       \
-    << " to be " #relationship " to " << (value) << "
-"                \
+    << " to be " #relationship " to " << (value) << "\n"                \
     << __FILE__ << ":" << __LINE__ << ": "                              \
     << "with tolerance of " << (eps_factor) * (value)                   \
     << " (" << (eps_factor)*100. << "%), "                              \

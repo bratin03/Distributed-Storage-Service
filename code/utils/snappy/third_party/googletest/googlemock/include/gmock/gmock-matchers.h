@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2007, Google Inc.
 // All rights reserved.
 //
@@ -652,8 +641,7 @@ class TuplePrefix {
     if (!matcher.MatchAndExplain(value, &listener)) {
       *os << "  Expected arg #" << N - 1 << ": ";
       std::get<N - 1>(matchers).DescribeTo(os);
-      *os << "
-           Actual: ";
+      *os << "\n           Actual: ";
       // We remove the reference in type Value to prevent the
       // universal printer from printing the address of value, which
       // isn't interesting to the user most of the time.  The
@@ -661,8 +649,7 @@ class TuplePrefix {
       // the address is interesting.
       internal::UniversalPrint(value, os);
       PrintIfNotEmpty(listener.str(), os);
-      *os << "
-";
+      *os << "\n";
     }
   }
 };
@@ -1607,20 +1594,17 @@ class PredicateFormatterFromMatcher {
     }
 
     ::std::stringstream ss;
-    ss << "Value of: " << value_text << "
-"
+    ss << "Value of: " << value_text << "\n"
        << "Expected: ";
     matcher.DescribeTo(&ss);
 
     // Rerun the matcher to "PrintAndExplain" the failure.
     StringMatchResultListener listener;
     if (MatchPrintAndExplain(x, matcher, &listener)) {
-      ss << "
-  The matcher failed on the initial attempt; but passed when "
+      ss << "\n  The matcher failed on the initial attempt; but passed when "
             "rerun to generate the explanation.";
     }
-    ss << "
-  Actual: " << listener.str();
+    ss << "\n  Actual: " << listener.str();
     return AssertionFailure() << ss.str();
   }
 
@@ -2481,8 +2465,7 @@ class ContainerEqMatcher {
           if (printed_header2) {
             *os << ", ";
           } else {
-            *os << (printed_header ? ",
-and" : "which")
+            *os << (printed_header ? ",\nand" : "which")
                 << " doesn't have these expected elements: ";
             printed_header2 = true;
           }
@@ -3403,14 +3386,12 @@ class ElementsAreMatcherImpl : public MatcherInterface<Container> {
       *os << "has 1 element that ";
       matchers_[0].DescribeTo(os);
     } else {
-      *os << "has " << Elements(count()) << " where
-";
+      *os << "has " << Elements(count()) << " where\n";
       for (size_t i = 0; i != count(); ++i) {
         *os << "element #" << i << " ";
         matchers_[i].DescribeTo(os);
         if (i + 1 < count()) {
-          *os << ",
-";
+          *os << ",\n";
         }
       }
     }
@@ -3423,14 +3404,12 @@ class ElementsAreMatcherImpl : public MatcherInterface<Container> {
       return;
     }
 
-    *os << "doesn't have " << Elements(count()) << ", or
-";
+    *os << "doesn't have " << Elements(count()) << ", or\n";
     for (size_t i = 0; i != count(); ++i) {
       *os << "element #" << i << " ";
       matchers_[i].DescribeNegationTo(os);
       if (i + 1 < count()) {
-        *os << ", or
-";
+        *os << ", or\n";
       }
     }
   }
@@ -3505,8 +3484,7 @@ class ElementsAreMatcherImpl : public MatcherInterface<Container> {
         const std::string& s = explanations[i];
         if (!s.empty()) {
           if (reason_printed) {
-            *listener << ",
-and ";
+            *listener << ",\nand ";
           }
           *listener << "whose element #" << i << " matches, " << s;
           reason_printed = true;

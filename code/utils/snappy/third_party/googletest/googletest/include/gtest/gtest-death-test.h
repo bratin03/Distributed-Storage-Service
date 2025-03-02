@@ -1,14 +1,3 @@
-/*
-    CS60002 - Distributed Systems
-    Term Project - Spring 2025
-
-    * Author 1: Bratin Mondal (21CS10016)
-    * Author 2: Soukhin Nayek (21CS10062)
-    * Author 3: Swarnabh Mandal (21CS10068)
-
-    * Department of Computer Science and Engineering
-    * Indian Institute of Technology, Kharagpur
-*/
 // Copyright 2005, Google Inc.
 // All rights reserved.
 //
@@ -130,27 +119,24 @@ GTEST_API_ bool InDeathTestChild();
 //   Below is the syntax that we do support.  We chose it to be a
 //   subset of both PCRE and POSIX extended regex, so it's easy to
 //   learn wherever you come from.  In the following: 'A' denotes a
-//   literal character, period (.), or a single \ escape sequence;
+//   literal character, period (.), or a single \\ escape sequence;
 //   'x' and 'y' denote regular expressions; 'm' and 'n' are for
 //   natural numbers.
 //
 //     c     matches any literal character c
-//     \d   matches any decimal digit
-//     \D   matches any character that's not a decimal digit
-//     \f   matches 
-//     \n   matches 
-
-//     \r   matches 
-//     \s   matches any ASCII whitespace, including 
-
-//     \S   matches any character that's not a whitespace
-//     \t   matches 	
-//     \v   matches 
-//     \w   matches any letter, _, or decimal digit
-//     \W   matches any character that \w doesn't match
-//     \c   matches any literal character c, which must be a punctuation
-//     .     matches any single character except 
-
+//     \\d   matches any decimal digit
+//     \\D   matches any character that's not a decimal digit
+//     \\f   matches \f
+//     \\n   matches \n
+//     \\r   matches \r
+//     \\s   matches any ASCII whitespace, including \n
+//     \\S   matches any character that's not a whitespace
+//     \\t   matches \t
+//     \\v   matches \v
+//     \\w   matches any letter, _, or decimal digit
+//     \\W   matches any character that \\w doesn't match
+//     \\c   matches any literal character c, which must be a punctuation
+//     .     matches any single character except \n
 //     A?    matches 0 or 1 occurrences of A
 //     A*    matches 0 or many occurrences of A
 //     A+    matches 1 or many occurrences of A
@@ -328,8 +314,7 @@ class GTEST_API_ KilledBySignal {
 #define GTEST_UNSUPPORTED_DEATH_TEST(statement, regex, terminator)             \
   GTEST_AMBIGUOUS_ELSE_BLOCKER_                                                \
   if (::testing::internal::AlwaysTrue()) {                                     \
-    GTEST_LOG_(WARNING) << "Death tests are not supported on this platform.
-" \
+    GTEST_LOG_(WARNING) << "Death tests are not supported on this platform.\n" \
                         << "Statement '" #statement "' cannot be verified.";   \
   } else if (::testing::internal::AlwaysFalse()) {                             \
     ::testing::internal::RE::PartialMatch(".*", (regex));                      \
