@@ -10,7 +10,14 @@ echo "Snappy installed successfully."
 
 echo "Testing snappy installation..."
 cd ..
-./generate.sh 
+
+# Check if the OS is macOS (Darwin)
+if [ "$(uname)" = "Darwin" ]; then
+    ./generate_mac.sh
+else
+    ./generate.sh
+fi
+
 ./compile.sh
 ./snappy_example
 echo "Snappy installation test completed."
