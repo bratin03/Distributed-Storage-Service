@@ -7,7 +7,7 @@ or later to build:
 ```bash
 git submodule update --init
 mkdir build
-cd build && cmake ../ && make
+cd build && cmake -DCMAKE_BUILD_TYPE=Release ../ && make
 ```
 
 Usage
@@ -31,5 +31,5 @@ where "input" and "output" are both instances of std::string.
 
 To compile:
 ```bash
-g++ -std=c++11 main.cpp -o snappy_example -lsnappy
+g++ -std=c++17 main.cpp -o snappy_example -lsnappy
 ```

@@ -1,1 +1,1 @@
-g++ -std=c++11 main.cpp -o snappy_example -lsnappy
+g++ -std=c++17 main.cpp -o snappy_example -lsnappy
