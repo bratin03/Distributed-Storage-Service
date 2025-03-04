@@ -6,5 +6,9 @@ echo "libjwt installed"
 echo "Testing libjwt"
 cd libjwt
 ./compile.sh
-./jwt_example
-echo "libjwt tested"
+./jwt_example.out
+if [ $? -eq 0 ]; then
+    echo "libjwt installation test passed."
+else
+    echo "libjwt installation test failed."
+fi

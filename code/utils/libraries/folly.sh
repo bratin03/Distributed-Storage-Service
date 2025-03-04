@@ -43,5 +43,9 @@ echo "Folly installed successfully."
 # Testing folly installation
 echo "Testing folly installation..."
 ./compile.sh
-./fbstring_example  
-echo "Folly installation test completed."
+./fbstring_example.out
+if [ $? -eq 0 ]; then
+    echo "Folly installation test passed."
+else
+    echo "Folly installation test failed."
+fi

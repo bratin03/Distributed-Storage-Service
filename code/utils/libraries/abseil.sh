@@ -11,5 +11,10 @@ echo "Abseil installed successfully."
 echo "Testing abseil installation..."
 cd ..
 ./compile.sh
-./hello_abseil
-echo "Abseil installation test completed."
+./hello_abseil.out
+    
+if [ $? -eq 0 ]; then
+    echo "Abseil installation test completed successfully."
+else
+    echo "Abseil installation test failed."
+fi  

@@ -73,3 +73,6 @@ obj/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# LevelDB database files
+testdb/
