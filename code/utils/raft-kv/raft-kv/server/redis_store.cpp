@@ -6,7 +6,7 @@
 
 namespace kv
 {
-
+  // TODO: Reomve this function
   // see redis keys command
   int string_match_len(const char *pattern, int patternLen,
                        const char *string, int stringLen, int nocase)
@@ -164,7 +164,7 @@ namespace kv
         redis_context_(nullptr)
   {
     redis_context_ = redisConnect(redis_ip.c_str(), redis_port);
-    if(redis_context_ == nullptr || redis_context_->err)
+    if (redis_context_ == nullptr || redis_context_->err)
     {
       LOG_ERROR("connect to redis %s:%d failed", redis_ip.c_str(), redis_port);
       if (redis_context_)
@@ -316,6 +316,34 @@ namespace kv
 
   void RedisStore::keys(const char *pattern, int len, std::vector<std::string> &keys)
   {
+
+    redisReply *reply = (redisReply *)redisCommand(redis_context_, "KEYS %s", pattern);
+    if (reply == nullptr)
+    {
+      LOG_ERROR("redis keys error %s", redis_context_->errstr);
+      redisFree(redis_context_);
+      throw std::runtime_error("redis keys error");
+    }
+
+    if (reply->type == REDIS_REPLY_ARRAY)
+    {
+      for (size_t i = 0; i < reply->elements; ++i)
+      {
+        keys.push_back(std::string(reply->element[i]->str, reply->element[i]->len));
+      }
+    }
+    else
+    {
+      LOG_ERROR("redis keys error %s", redis_context_->errstr);
+      freeReplyObject(reply);
+      redisFree(redis_context_);
+      throw std::runtime_error("redis keys error");
+    }
+    freeReplyObject(reply);
+    // Check if the pattern is empty
+
+    return;
+
     for (auto it = key_values_.begin(); it != key_values_.end(); ++it)
     {
       if (string_match_len(pattern, len, it->first.c_str(), it->first.size(), 0))
@@ -347,11 +375,47 @@ namespace kv
       case RedisCommitData::kCommitSet:
       {
         assert(data.strs.size() == 2);
+        redisReply *reply = (redisReply *)redisCommand(redis_context_, "SET %s %s", data.strs[0].c_str(), data.strs[1].c_str());
+        if (reply == nullptr)
+        {
+          LOG_ERROR("redis set error %s", redis_context_->errstr);
+          redisFree(redis_context_);
+          throw std::runtime_error("redis set error");
+        }
+        if (reply->type != REDIS_REPLY_STATUS)
+        {
+          LOG_ERROR("redis set error %s", redis_context_->errstr);
+          freeReplyObject(reply);
+          redisFree(redis_context_);
+          throw std::runtime_error("redis set error");
+        }
+        freeReplyObject(reply);
+        break;
+
+        // TODO: Remove this part
         this->key_values_[std::move(data.strs[0])] = std::move(data.strs[1]);
         break;
       }
       case RedisCommitData::kCommitDel:
       {
+        redisReply *reply = (redisReply *)redisCommand(redis_context_, "DEL %s", data.strs[0].c_str());
+        if (reply == nullptr)
+        {
+          LOG_ERROR("redis del error %s", redis_context_->errstr);
+          redisFree(redis_context_);
+          throw std::runtime_error("redis del error");
+        }
+        if (reply->type != REDIS_REPLY_INTEGER)
+        {
+          LOG_ERROR("redis del error %s", redis_context_->errstr);
+          freeReplyObject(reply);
+          redisFree(redis_context_);
+          throw std::runtime_error("redis del error");
+        }
+        freeReplyObject(reply);
+        break;
+        // TODO: Remove this part
+
         for (const std::string &key : data.strs)
         {
           this->key_values_.erase(key);

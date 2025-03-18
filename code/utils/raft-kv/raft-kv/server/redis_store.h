@@ -61,6 +61,37 @@ namespace kv
 
     bool get(const std::string &key, std::string &value)
     {
+      redisReply *reply = (redisReply *)redisCommand(redis_context_, "GET %s", key.c_str());
+      if (reply == nullptr)
+      {
+        LOG_ERROR("redis get error %s", redis_context_->errstr);
+        redisFree(redis_context_);
+        throw std::runtime_error("redis get error");
+      }
+
+      // Check for NIL reply
+      if (reply->type == REDIS_REPLY_NIL)
+      {
+        freeReplyObject(reply);
+        return false;
+      }
+      // Otherwise, we have a valid reply
+      if (reply->type == REDIS_REPLY_STRING)
+      {
+        value.assign(reply->str, reply->len);
+      }
+      else
+      {
+        LOG_ERROR("redis get error %s", redis_context_->errstr);
+        freeReplyObject(reply);
+        redisFree(redis_context_);
+        throw std::runtime_error("redis get error");
+      }
+      freeReplyObject(reply);
+      return true;
+
+
+      // TODO: Remove this part
       auto it = key_values_.find(key);
       if (it != key_values_.end())
       {
