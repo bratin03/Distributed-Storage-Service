@@ -14,9 +14,9 @@ A C++ implementation of RAFT consensus algorithm based on [asio](https://github.
     
 ### Running a cluster
 
-First install [goreman](https://github.com/mattn/goreman), which manages Procfile-based applications.
+First install [foreman](https://github.com/mattn/foreman), which manages Procfile-based applications.
 
-    goreman start
+    foreman start
     
     
 ### Test
@@ -31,7 +31,7 @@ install [redis-cli](https://github.com/antirez/redis), a redis console client.
     
 remove a node and replace the myvalue with "new-value" to check cluster availability:
 
-    goreman run stop node2
+    foreman run stop node2
     redis-cli -p 63791
     127.0.0.1:63791> set mykey new-value
     OK

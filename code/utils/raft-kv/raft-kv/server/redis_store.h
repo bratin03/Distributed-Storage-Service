@@ -89,16 +89,6 @@ namespace kv
       }
       freeReplyObject(reply);
       return true;
-
-
-      // TODO: Remove this part
-      auto it = key_values_.find(key);
-      if (it != key_values_.end())
-      {
-        value = it->second;
-        return true;
-      }
-      return false;
     }
 
     void set(std::string key, std::string value, const StatusCallback &callback);

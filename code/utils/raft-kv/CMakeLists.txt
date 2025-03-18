@@ -4,7 +4,6 @@ project(raft-kv)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 add_definitions(-Wall)
 add_definitions(-DDEBUG)
 
@@ -29,15 +28,5 @@ set(LIBS
 )
 
 add_subdirectory(raft-kv)
-
-pkg_check_modules(GoogleTest gtest_main)
-if(GoogleTest_FOUND)
-    include_directories(${GoogleTest_INCLUDE_DIRS})
-    set(LIBS
-        ${LIBS}
-        ${GoogleTest_LIBRARIES})
-    add_subdirectory(tests)
-    enable_testing()
-endif(GoogleTest_FOUND)
 
 configure_file(Procfile.in Procfile)

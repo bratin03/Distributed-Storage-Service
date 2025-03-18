@@ -6,156 +6,6 @@
 
 namespace kv
 {
-  // TODO: Reomve this function
-  // see redis keys command
-  int string_match_len(const char *pattern, int patternLen,
-                       const char *string, int stringLen, int nocase)
-  {
-    while (patternLen && stringLen)
-    {
-      switch (pattern[0])
-      {
-      case '*':
-        while (pattern[1] == '*')
-        {
-          pattern++;
-          patternLen--;
-        }
-        if (patternLen == 1)
-          return 1; /* match */
-        while (stringLen)
-        {
-          if (string_match_len(pattern + 1, patternLen - 1,
-                               string, stringLen, nocase))
-            return 1; /* match */
-          string++;
-          stringLen--;
-        }
-        return 0; /* no match */
-        break;
-      case '?':
-        if (stringLen == 0)
-          return 0; /* no match */
-        string++;
-        stringLen--;
-        break;
-      case '[':
-      {
-        int not_match, match;
-
-        pattern++;
-        patternLen--;
-        not_match = pattern[0] == '^';
-        if (not_match)
-        {
-          pattern++;
-          patternLen--;
-        }
-        match = 0;
-        while (1)
-        {
-          if (pattern[0] == '\\' && patternLen >= 2)
-          {
-            pattern++;
-            patternLen--;
-            if (pattern[0] == string[0])
-              match = 1;
-          }
-          else if (pattern[0] == ']')
-          {
-            break;
-          }
-          else if (patternLen == 0)
-          {
-            pattern--;
-            patternLen++;
-            break;
-          }
-          else if (pattern[1] == '-' && patternLen >= 3)
-          {
-            int start = pattern[0];
-            int end = pattern[2];
-            int c = string[0];
-            if (start > end)
-            {
-              int t = start;
-              start = end;
-              end = t;
-            }
-            if (nocase)
-            {
-              start = tolower(start);
-              end = tolower(end);
-              c = tolower(c);
-            }
-            pattern += 2;
-            patternLen -= 2;
-            if (c >= start && c <= end)
-              match = 1;
-          }
-          else
-          {
-            if (!nocase)
-            {
-              if (pattern[0] == string[0])
-                match = 1;
-            }
-            else
-            {
-              if (tolower((int)pattern[0]) == tolower((int)string[0]))
-                match = 1;
-            }
-          }
-          pattern++;
-          patternLen--;
-        }
-        if (not_match)
-          match = !match;
-        if (!match)
-          return 0; /* no match */
-        string++;
-        stringLen--;
-        break;
-      }
-      case '\\':
-        if (patternLen >= 2)
-        {
-          pattern++;
-          patternLen--;
-        }
-        /* fall through */
-      default:
-        if (!nocase)
-        {
-          if (pattern[0] != string[0])
-            return 0; /* no match */
-        }
-        else
-        {
-          if (tolower((int)pattern[0]) != tolower((int)string[0]))
-            return 0; /* no match */
-        }
-        string++;
-        stringLen--;
-        break;
-      }
-      pattern++;
-      patternLen--;
-      if (stringLen == 0)
-      {
-        while (*pattern == '*')
-        {
-          pattern++;
-          patternLen--;
-        }
-        break;
-      }
-    }
-    if (patternLen == 0 && stringLen == 0)
-      return 1;
-    return 0;
-  }
-
   RedisStore::RedisStore(RaftNode *server, std::vector<uint8_t> snap, uint16_t port, const std::string &ip,
                          uint16_t redis_port, const std::string &redis_ip)
       : server_(server),
@@ -187,6 +37,82 @@ namespace kv
         LOG_WARN("invalid snapshot");
       }
       std::swap(kv, key_values_);
+      // Clear the redis database
+      redisReply *reply = (redisReply *)redisCommand(redis_context_, "FLUSHDB");
+      if (reply == nullptr)
+      {
+        LOG_ERROR("redis flushdb error %s", redis_context_->errstr);
+        redisFree(redis_context_);
+        throw std::runtime_error("redis flushdb error");
+      }
+      freeReplyObject(reply);
+      // Apply the snapshot to redis
+      for (const auto &kv_pair : key_values_)
+      {
+        redisReply *reply = (redisReply *)redisCommand(redis_context_, "SET %s %s", kv_pair.first.c_str(), kv_pair.second.c_str());
+        if (reply == nullptr)
+        {
+          LOG_ERROR("redis set error %s", redis_context_->errstr);
+          redisFree(redis_context_);
+          throw std::runtime_error("redis set error");
+        }
+        if (reply->type != REDIS_REPLY_STATUS)
+        {
+          LOG_ERROR("redis set error %s", redis_context_->errstr);
+          freeReplyObject(reply);
+          redisFree(redis_context_);
+          throw std::runtime_error("redis set error");
+        }
+        freeReplyObject(reply);
+      }
+    }
+    else
+    {
+      LOG_INFO("Initializing key-values from Redis");
+      // Initialize the key_values_ map with the existing key-value pairs in redis
+      key_values_.clear();
+      redisReply *reply = (redisReply *)redisCommand(redis_context_, "KEYS *");
+      if (reply == nullptr)
+      {
+        LOG_ERROR("redis keys error %s", redis_context_->errstr);
+        redisFree(redis_context_);
+        throw std::runtime_error("redis keys error");
+      }
+      if (reply->type == REDIS_REPLY_ARRAY)
+      {
+        for (size_t i = 0; i < reply->elements; ++i)
+        {
+          std::string key(reply->element[i]->str, reply->element[i]->len);
+          redisReply *value_reply = (redisReply *)redisCommand(redis_context_, "GET %s", key.c_str());
+          if (value_reply == nullptr)
+          {
+            LOG_ERROR("redis get error %s", redis_context_->errstr);
+            redisFree(redis_context_);
+            throw std::runtime_error("redis get error");
+          }
+          if (value_reply->type == REDIS_REPLY_STRING)
+          {
+            std::string value(value_reply->str, value_reply->len);
+            key_values_[key] = value;
+          }
+          else
+          {
+            LOG_ERROR("redis get error %s", redis_context_->errstr);
+            freeReplyObject(value_reply);
+            redisFree(redis_context_);
+            throw std::runtime_error("redis get error");
+          }
+          freeReplyObject(value_reply);
+        }
+        LOG_INFO("Loaded %zu key-value pairs from Redis", reply->elements);
+      }
+      else
+      {
+        LOG_ERROR("redis keys error %s", redis_context_->errstr);
+        redisFree(redis_context_);
+        throw std::runtime_error("redis keys error");
+      }
+      freeReplyObject(reply);
     }
 
     // Use the provided IP address (defaulting to "0.0.0.0" if not specified)
