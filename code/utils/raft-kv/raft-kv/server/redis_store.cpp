@@ -66,55 +66,7 @@ namespace kv
         freeReplyObject(reply);
       }
     }
-    else
-    {
-      LOG_INFO("Initializing key-values from Redis");
-      // Initialize the key_values_ map with the existing key-value pairs in redis
-      key_values_.clear();
-      redisReply *reply = (redisReply *)redisCommand(redis_context_, "KEYS *");
-      if (reply == nullptr)
-      {
-        LOG_ERROR("redis keys error %s", redis_context_->errstr);
-        redisFree(redis_context_);
-        throw std::runtime_error("redis keys error");
-      }
-      if (reply->type == REDIS_REPLY_ARRAY)
-      {
-        for (size_t i = 0; i < reply->elements; ++i)
-        {
-          std::string key(reply->element[i]->str, reply->element[i]->len);
-          redisReply *value_reply = (redisReply *)redisCommand(redis_context_, "GET %s", key.c_str());
-          if (value_reply == nullptr)
-          {
-            LOG_ERROR("redis get error %s", redis_context_->errstr);
-            redisFree(redis_context_);
-            throw std::runtime_error("redis get error");
-          }
-          if (value_reply->type == REDIS_REPLY_STRING)
-          {
-            std::string value(value_reply->str, value_reply->len);
-            key_values_[key] = value;
-          }
-          else
-          {
-            LOG_ERROR("redis get error %s", redis_context_->errstr);
-            freeReplyObject(value_reply);
-            redisFree(redis_context_);
-            throw std::runtime_error("redis get error");
-          }
-          freeReplyObject(value_reply);
-        }
-        LOG_INFO("Loaded %zu key-value pairs from Redis", reply->elements);
-      }
-      else
-      {
-        LOG_ERROR("redis keys error %s", redis_context_->errstr);
-        redisFree(redis_context_);
-        throw std::runtime_error("redis keys error");
-      }
-      freeReplyObject(reply);
-    }
-
+ 
     // Use the provided IP address (defaulting to "0.0.0.0" if not specified)
     auto address = boost::asio::ip::address::from_string(ip);
     auto endpoint = boost::asio::ip::tcp::endpoint(address, port);
