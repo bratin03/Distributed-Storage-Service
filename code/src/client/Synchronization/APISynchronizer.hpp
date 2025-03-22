@@ -1,35 +1,70 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <map>
+#include <nlohmann/json.hpp>
+#include <curl/curl.h>
+#include "Indexer/Indexer.hpp"
+#include "Chunker/Chunker.hpp"
 
-// APISynchronizer encapsulates calls to the REST endpoints for
-// directory management, file operations, and file updates.
-class APISynchronizer {
-public:
-    // DIRECTORY APIs
-    bool createDirectory(const std::string& dir_id);
-    bool deleteDirectory(const std::string& dir_id);
-    std::string listDirectory(const std::string& dir_id); // returns JSON response
 
-    // FILE APIs
-    bool deleteFile(const std::string& file_id);
-    std::string downloadFile(const std::string& file_id);  // returns metadata JSON
-    std::string downloadChunk(const std::string& chunk_id); // returns JSON with metadata and data
+// Event handler interface
+class FileSystemEventHandler {
+    public:
+        virtual void onFileCreated(const std::string& path) = 0;
+        virtual void onFileModified(const std::string& path) = 0;
+        virtual void onFileDeleted(const std::string& path) = 0;
+        virtual void onDirectoryCreated(const std::string& path) = 0;
+        virtual void onDirectoryDeleted(const std::string& path) = 0;
+        virtual ~FileSystemEventHandler() {}
+    };
 
-    // UPDATE FILE APIs
-    // updateRequest sends file_version, file metadata (as JSON string) and a list of chunk IDs,
-    // then returns the list of required chunks in JSON.
-    std::string updateRequest(const std::string& file_version, 
-                              const std::string& file_metadata, 
-                              const std::vector<std::string>& chunkIDs);
+// HTTP API client
+class ApiClient {
+    private:
+        std::string server_url;
+        CURL* curl;
+        
+        static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
     
-    // storeChunk uploads a single chunk (its id, metadata as JSON, and data as string).
-    bool storeChunk(const std::string& chunkid, 
-                    const std::string& metadata, 
-                    const std::string& data);
+    public:
+        ApiClient(const std::string& url);
+        ~ApiClient();
+        
+        json createDirectory(const std::string& dir_id);
+        json deleteDirectory(const std::string& dir_id);
+        json listDirectory(const std::string& dir_id);
+        
+        json deleteFile(const std::string& file_id);
+        json downloadFile(const std::string& file_id);
+        json downloadChunk(const std::string& chunk_id);
+        
+        json updateRequest(int file_version, const FileMetadata& metadata);
+        json storeChunk(const std::string& chunk_id, const json& metadata, const std::string& data);
+        json commitUpdate(const FileMetadata& metadata);
+    };
     
-    // commitUpdate tells the server to finalize the update with file metadata and chunk IDs.
-    // It returns a response that is either 200OK or (if some chunk is missing) the missing chunkid.
-    std::string commitUpdate(const std::string& file_metadata, 
-                             const std::vector<std::string>& chunkIDs);
-};
+    // Synchronizer class to coordinate file synchronization
+    class Synchronizer : public FileSystemEventHandler {
+    private:
+        std::string root_dir;
+        std::string chunks_dir;
+        Indexer* indexer;
+        Chunker* chunker;
+        ApiClient* api_client;
+        
+    public:
+        Synchronizer(const std::string& root, const std::string& chunks, Indexer* idx, Chunker* chk, ApiClient* api);
+        
+        void initialSync();
+        void syncDirectory(const std::string& dir_id);
+        void uploadFile(const std::string& file_path);
+        void downloadFile(const std::string& file_id);
+        
+        // FileSystemEventHandler interface implementation
+        void onFileCreated(const std::string& path) override;
+        void onFileModified(const std::string& path) override;
+        void onFileDeleted(const std::string& path) override;
+        void onDirectoryCreated(const std::string& path) override;
+        void onDirectoryDeleted(const std::string& path) override;
+    };

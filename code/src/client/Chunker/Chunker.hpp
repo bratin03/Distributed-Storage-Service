@@ -3,18 +3,14 @@
 #pragma once
 #include <vector>
 #include <string>
+#include "DB/db.hpp"
 
-// Represents a file chunk
-struct Chunk {
-    std::string id;    // e.g. SHA-256 hash
-    std::vector<char> data;
-};
-
-class Chunker {
+// Chunker class to split and reassemble files
+class Chunker
+{
 public:
-    // Splits the file at 'filePath' into chunks of fixed size (e.g., 4MB)
-    virtual std::vector<Chunk> chunkFile(const std::string& filePath, size_t chunkSize = 4 * 1024 * 1024) = 0;
-    // Reassembles chunks back to file content (for download)
-    virtual std::vector<char> reassembleFile(const std::vector<Chunk>& chunks) = 0;
-    virtual ~Chunker() = default;
+    std::vector<ChunkMetadata> splitFile(const std::string &file_path, const std::string &output_dir);
+    void reassembleFile(const std::string &output_path, const std::vector<ChunkMetadata> &chunks, const std::string &chunks_dir);
+    std::string calculateChunkHash(const char *data, size_t size);
+    std::string calculateFileHash(const std::vector<ChunkMetadata> &chunks);
 };

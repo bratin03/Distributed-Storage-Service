@@ -3,14 +3,29 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <map>
+#include <thread>
+#include "Synchronization/APISynchronizer.hpp"
 
-// A simplified interface for a file system watcher
-class Watcher {
+// Watcher class using inotify
+class Watcher
+{
+private:
+    int inotify_fd;
+    std::atomic<bool> running;
+    std::thread watch_thread;
+    std::string root_dir;
+    std::map<int, std::string> watch_descriptors;
+    FileSystemEventHandler *event_handler;
+
+    void watchThread();
+    void processEvent(struct inotify_event *event);
+
 public:
-    using Callback = std::function<void(const std::string& filePath)>;
+    Watcher(const std::string &dir, FileSystemEventHandler *handler);
+    ~Watcher();
 
-    // Start watching a directory
-    virtual void startWatching(const std::string& directory, Callback callback) = 0;
-
-    virtual ~Watcher() = default;
+    void startWatching();
+    void stopWatching();
+    void addWatch(const std::string &path);
 };

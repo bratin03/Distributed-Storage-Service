@@ -4,141 +4,226 @@
 #include <thread>
 #include <chrono>
 
-// ----- Dummy HTTP Client ----- //
-// In practice, replace this with a real HTTP client library.
-class HttpClient {
-public:
-    // Simulated GET request.
-    std::string get(const std::string& url) {
-        std::cout << "[HTTP GET] " << url << std::endl;
-        // Return a dummy success response.
-        return "{\"status\":\"200 OK\", \"data\":\"dummy_response\"}";
+// ApiClient implementation using cpp-httplib
+ApiClient::ApiClient(const std::string& url) : server_url(url) {
+    if (server_url.find("https://") != std::string::npos) {
+        cli = std::make_unique<httplib::SSLClient>(server_url);
+    } else {
+        cli = std::make_unique<httplib::Client>(server_url);
+    }
+    cli->set_connection_timeout(30);
+    cli->set_read_timeout(45);
+    cli->set_write_timeout(45);
+}
+
+json ApiClient::createDirectory(const std::string& dir_id) {
+    std::string path = "/create_directory/" + httplib::detail::encode_url(dir_id);
+    auto res = cli->Post(path.c_str());
+    return handleResponse(res);
+}
+
+json ApiClient::deleteDirectory(const std::string& dir_id) {
+    std::string path = "/delete_directory/" + httplib::detail::encode_url(dir_id);
+    auto res = cli->Delete(path.c_str());
+    return handleResponse(res);
+}
+
+json ApiClient::listDirectory(const std::string& dir_id) {
+    std::string path = "/list_directory/" + httplib::detail::encode_url(dir_id);
+    auto res = cli->Get(path.c_str());
+    return handleResponse(res);
+}
+
+json ApiClient::updateRequest(int file_version, const FileMetadata& metadata) {
+    json payload;
+    payload["file_version"] = file_version;
+    payload["metadata"] = metadata;
+    auto res = cli->Post("/update_request", payload.dump(), "application/json");
+    return handleResponse(res);
+}
+
+json ApiClient::storeChunk(const std::string& chunk_id, const json& metadata, const std::string& data) {
+    json payload;
+    payload["chunkid"] = chunk_id;
+    payload["metadata"] = metadata;
+    payload["data"] = httplib::detail::base64_encode(data);
+    
+    auto res = cli->Post("/store_chunk", payload.dump(), "application/json");
+    return handleResponse(res);
+}
+
+json ApiClient::commitUpdate(const FileMetadata& metadata) {
+    json payload;
+    payload["metadata"] = metadata;
+    auto res = cli->Post("/commit_update", payload.dump(), "application/json");
+    return handleResponse(res);
+}
+
+// Synchronizer implementation
+void Synchronizer::initialSync() {
+    // Sync directory structure first
+    syncDirectory(".");
+    
+    // Then sync all files
+    auto root_meta = indexer->getDirMetadata(".");
+    for (const auto& file_id : root_meta.files) {
+        downloadFile(file_id);
+    }
+}
+
+void Synchronizer::syncDirectory(const std::string& dir_id) {
+    try {
+        // Get local directory metadata
+        auto local_meta = indexer->getDirMetadata(dir_id);
+        
+        // Get server directory state
+        json server_response = api_client->listDirectory(dir_id);
+        
+        // Sync subdirectories
+        for (const auto& server_dir : server_response["dir"]) {
+            if (std::find(local_meta.subdirs.begin(), local_meta.subdirs.end(), 
+                         server_dir["dir_id"]) == local_meta.subdirs.end()) {
+                // Create missing directory
+                api_client->createDirectory(server_dir["dir_id"]);
+                indexer->updateDirectoryMetadata(server_dir["dir_id"]);
+            }
+        }
+        
+        // Sync files
+        for (const auto& server_file : server_response["file"]) {
+            std::string file_id = server_file["file_id"];
+            if (std::find(local_meta.files.begin(), local_meta.files.end(), 
+                         file_id) == local_meta.files.end()) {
+                downloadFile(file_id);
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Directory sync failed: " << e.what() << std::endl;
+    }
+}
+
+void Synchronizer::uploadFile(const std::string& file_path) {
+    try {
+        // Get relative path and metadata
+        fs::path rel_path = fs::relative(file_path, root_dir);
+        std::string file_id = rel_path.string();
+        FileMetadata local_meta = indexer->getFileMetadata(file_id);
+        
+        // Split file into chunks
+        auto chunks = chunker->splitFile(file_path, chunks_dir);
+        local_meta.chunks = chunks;
+        local_meta.overall_hash = chunker->calculateFileHash(chunks);
+        
+        // Start update process
+        json response = api_client->updateRequest(local_meta.version_number, local_meta);
+        
+        if (response.contains("nb")) {
+            // Upload needed chunks
+            for (const auto& chunk_id : response["nb"]) {
+                std::string chunk_path = chunks_dir + "/" + chunk_id.get<std::string>();
+                std::ifstream file(chunk_path, std::ios::binary);
+                std::string data((std::istreambuf_iterator<char>(file)), 
+                               std::istreambuf_iterator<char>());
+                
+                json chunk_meta;
+                chunk_meta["chunk_id"] = chunk_id;
+                chunk_meta["offset"] = local_meta.chunks[0].offset; // Simplified
+                
+                api_client->storeChunk(chunk_id, chunk_meta, data);
+            }
+        }
+        
+        // Commit the update
+        api_client->commitUpdate(local_meta);
+        
+        // Update local metadata
+        local_meta.status = "complete";
+        indexer->updateFileMetadata(file_path);
+        
+    } catch (const std::exception& e) {
+        std::cerr << "File upload failed: " << e.what() << std::endl;
+        indexer->getFileMetadata(file_id).status = "error";
+    }
+}
+
+void Synchronizer::downloadFile(const std::string& file_id) {
+    try {
+        // Get server metadata
+        json server_meta = api_client->downloadFile(file_id);
+        
+        // Create temporary directory for chunks
+        std::string temp_dir = chunks_dir + "/temp_" + file_id;
+        fs::create_directories(temp_dir);
+        
+        // Download all chunks
+        std::vector<ChunkMetadata> chunks;
+        for (const auto& chunk_id : server_meta["chunks"]) {
+            json chunk_data = api_client->downloadChunk(chunk_id);
+            
+            // Save chunk to temp directory
+            std::string chunk_path = temp_dir + "/" + chunk_id.get<std::string>();
+            std::ofstream file(chunk_path, std::ios::binary);
+            std::string data = httplib::detail::base64_decode(chunk_data["data"]);
+            file.write(data.c_str(), data.size());
+            
+            // Add chunk metadata
+            ChunkMetadata meta;
+            meta.chunk_id = chunk_id;
+            meta.offset = chunk_data["offset"];
+            meta.size = data.size();
+            chunks.push_back(meta);
+        }
+        
+        // Reassemble file
+        std::string output_path = root_dir + "/" + file_id;
+        chunker->reassembleFile(output_path, chunks, temp_dir);
+        
+        // Update local metadata
+        FileMetadata local_meta;
+        local_meta.file_id = file_id;
+        local_meta.version_number = server_meta["version_number"];
+        local_meta.timestamp = server_meta["timestamp"];
+        local_meta.chunks = chunks;
+        local_meta.status = "complete";
+        indexer->updateFileMetadata(output_path);
+        
+        // Cleanup temp directory
+        fs::remove_all(temp_dir);
+        
+    } catch (const std::exception& e) {
+        std::cerr << "File download failed: " << e.what() << std::endl;
+    }
+}
+
+// Event handlers
+void Synchronizer::onFileCreated(const std::string& path) {
+    if (fs::is_directory(path)) {
+        syncDirectory(fs::relative(path, root_dir).string());
+    } else {
+        uploadFile(path);
+    }
+}
+
+void Synchronizer::onFileModified(const std::string& path) {
+    uploadFile(path);
+}
+
+void Synchronizer::onFileDeleted(const std::string& path) {
+    std::string file_id = fs::relative(path, root_dir).string();
+    api_client->deleteFile(file_id);
+    indexer->removeFile(path);
+}
+
+// Helper function for API responses
+json ApiClient::handleResponse(const httplib::Result& res) {
+    if (!res) {
+        auto err = res.error();
+        throw std::runtime_error("HTTP error: " + httplib::to_string(err));
     }
     
-    // Simulated POST request.
-    std::string post(const std::string& url, const std::string& payload) {
-        std::cout << "[HTTP POST] " << url << std::endl;
-        std::cout << "Payload: " << payload << std::endl;
-        // Simulate different responses based on endpoint.
-        if (url.find("/update_request/") != std::string::npos) {
-            return "{\"nb\": [\"chunk_needed_1\", \"chunk_needed_2\"]}";
-        } else if (url.find("/commit_update/") != std::string::npos) {
-            // For simplicity, always return 200 OK.
-            return "{\"status\":\"200 OK\"}";
-        }
-        return "{\"status\":\"200 OK\"}";
+    if (res->status >= 400) {
+        throw std::runtime_error("API error: " + res->body);
     }
-};
-
-static HttpClient httpClient;
-
-// ----- DIRECTORY APIs ----- //
-
-bool APISynchronizer::createDirectory(const std::string& dir_id) {
-    std::string url = "/create_directory/" + dir_id;
-    std::string response = httpClient.get(url);
-    std::cout << "Response: " << response << std::endl;
-    // Assume response status is OK.
-    return true;
-}
-
-bool APISynchronizer::deleteDirectory(const std::string& dir_id) {
-    std::string url = "/delete_directory/" + dir_id;
-    std::string response = httpClient.get(url);
-    std::cout << "Response: " << response << std::endl;
-    return true;
-}
-
-std::string APISynchronizer::listDirectory(const std::string& dir_id) {
-    std::string url = "/list_directory/" + dir_id;
-    std::string response = httpClient.get(url);
-    std::cout << "Response: " << response << std::endl;
-    return response;
-}
-
-// ----- FILE APIs ----- //
-
-bool APISynchronizer::deleteFile(const std::string& file_id) {
-    std::string url = "/delete_file";
-    std::ostringstream oss;
-    oss << "{ \"file_id\": \"" << file_id << "\" }";
-    std::string payload = oss.str();
-    std::string response = httpClient.post(url, payload);
-    std::cout << "Response: " << response << std::endl;
-    return true;
-}
-
-std::string APISynchronizer::downloadFile(const std::string& file_id) {
-    std::string url = "/download_file/" + file_id;
-    std::string response = httpClient.get(url);
-    std::cout << "Response: " << response << std::endl;
-    return response;
-}
-
-std::string APISynchronizer::downloadChunk(const std::string& chunk_id) {
-    std::string url = "/download_chunk/" + chunk_id;
-    std::string response = httpClient.get(url);
-    std::cout << "Response: " << response << std::endl;
-    return response;
-}
-
-// ----- UPDATE FILE APIs ----- //
-
-std::string APISynchronizer::updateRequest(const std::string& file_version, 
-                                             const std::string& file_metadata, 
-                                             const std::vector<std::string>& chunkIDs) {
-    std::string url = "/update_request/";
-    std::ostringstream oss;
-    oss << "{"
-        << "\"file_version\": \"" << file_version << "\","
-        << "\"file_metadata\": " << file_metadata << ","
-        << "\"chunkIDs\": [";
-    for (size_t i = 0; i < chunkIDs.size(); ++i) {
-        oss << "\"" << chunkIDs[i] << "\"";
-        if (i != chunkIDs.size() - 1) {
-            oss << ",";
-        }
-    }
-    oss << "]"
-        << "}";
-    std::string payload = oss.str();
-    std::string response = httpClient.post(url, payload);
-    std::cout << "Response: " << response << std::endl;
-    return response;
-}
-
-bool APISynchronizer::storeChunk(const std::string& chunkid, 
-                                 const std::string& metadata, 
-                                 const std::string& data) {
-    std::string url = "/store_chunk/";
-    std::ostringstream oss;
-    oss << "{"
-        << "\"chunkid\": \"" << chunkid << "\","
-        << "\"metadata\": " << metadata << ","
-        << "\"data\": \"" << data << "\""
-        << "}";
-    std::string payload = oss.str();
-    std::string response = httpClient.post(url, payload);
-    std::cout << "Response: " << response << std::endl;
-    return true;
-}
-
-std::string APISynchronizer::commitUpdate(const std::string& file_metadata, 
-                                          const std::vector<std::string>& chunkIDs) {
-    std::string url = "/commit_update/";
-    std::ostringstream oss;
-    oss << "{"
-        << "\"file_metadata\": " << file_metadata << ","
-        << "\"chunkIDs\": [";
-    for (size_t i = 0; i < chunkIDs.size(); ++i) {
-        oss << "\"" << chunkIDs[i] << "\"";
-        if (i != chunkIDs.size() - 1)
-            oss << ",";
-    }
-    oss << "]"
-        << "}";
-    std::string payload = oss.str();
-    std::string response = httpClient.post(url, payload);
-    std::cout << "Response: " << response << std::endl;
-    return response;
+    
+    return json::parse(res->body);
 }

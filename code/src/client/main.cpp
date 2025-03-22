@@ -1,41 +1,59 @@
+// main.cpp
+#include "dss_client.h"
+#include <csignal>
+#include <chrono>
+#include <atomic>
 
-// File: main.cpp
-#include <iostream>
-#include "Watcher.hpp"
-#ifdef __linux__
-#include "InotifyWatcher.cpp"
-#endif
-#include "SimpleChunker.cpp"
-#include "SimpleIndexer.cpp"
+using namespace std::chrono_literals;
 
-int main() {
-    // Choose a directory to watch (adjust as needed)
-    std::string watchDir = "/path/to/sync/folder";
-    
-#ifdef __linux__
-    InotifyWatcher watcher;
-#else
-    // On other platforms, use a different watcher implementation.
-    // For this example, we assume Linux.
-    InotifyWatcher watcher;
-#endif
+// Global atomic flag for shutdown control
+std::atomic<bool> running{true};
 
-    SimpleChunker chunker;
-    SimpleIndexer indexer;
+// Signal handler for graceful shutdown
+void signal_handler(int signum) {
+    std::cout << "\nReceived termination signal (" << signum << "), shutting down...\n";
+    running = false;
+}
 
-    // Start watching for file changes
-    watcher.startWatching(watchDir, [&](const std::string& fileName) {
-        std::string fullPath = watchDir + "/" + fileName;
-        std::cout << "Change detected in file: " << fullPath << std::endl;
-        // Chunk the changed file
-        auto chunks = chunker.chunkFile(fullPath);
-        // Update the index with new chunk info
-        indexer.updateFileIndex(fullPath, chunks);
-        // Next step: trigger upload of changed chunks to the server.
-    });
-    
-    // Keep the main thread alive (in a real application, use proper event loop)
-    while (true) { std::this_thread::sleep_for(std::chrono::seconds(10)); }
-    
-    return 0;
+int main(int argc, char* argv[]) {
+    // Register signal handlers
+    std::signal(SIGINT, signal_handler);  // Ctrl+C
+    std::signal(SIGTERM, signal_handler); // Systemd/kill command
+
+    try {
+        // Configuration - could be read from config file or command line
+        const std::string root_dir = (argc > 1) ? argv[1] : "root_dss";
+        const std::string server_url = (argc > 2) ? argv[2] : "http://localhost:8080";
+
+        // Create and configure client
+        DssClient client(root_dir, server_url);
+        
+        std::cout << "\n=== DSS Client Starting ===\n";
+        std::cout << "Root Directory: " << fs::absolute(root_dir) << "\n";
+        std::cout << "Server Endpoint: " << server_url << "\n\n";
+
+        // Initialize client components
+        client.initialize();
+
+        // Start synchronization and monitoring
+        client.start();
+
+        // Main loop - keep alive until shutdown signal
+        while(running) {
+            std::this_thread::sleep_for(500ms); // Reduce CPU usage
+            
+            // Could add health checks or periodic sync here
+        }
+
+        // Shutdown sequence
+        std::cout << "\n=== Initiating Shutdown ===\n";
+        client.stop();
+        std::cout << "Shutdown complete.\n";
+
+    } catch(const std::exception& e) {
+        std::cerr << "\n!!! Critical Error: " << e.what() << " !!!\n";
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }
