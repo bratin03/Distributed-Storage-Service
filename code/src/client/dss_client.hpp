@@ -11,12 +11,15 @@
 #include <mutex>
 #include <atomic>
 #include <condition_variable>
+#include <nlohmann/json.hpp>
+#include "Watcher/Watcher.hpp"
+#include "Chunker/Chunker.hpp"
+#include "Indexer/Indexer.hpp"
+#include "Synchronization/APISynchronizer.hpp"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-// Size of chunks for file splitting (1MB)
-constexpr size_t CHUNK_SIZE = 1024 * 1024;
 
 // Main client class
 class DssClient

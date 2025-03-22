@@ -2,6 +2,7 @@
 // File: SimpleIndexer.cpp
 #include "Indexer.hpp"
 #include <iostream>
+#include <fstream>
 #include <filesystem>
 #include <nlohmann/json.hpp>
 
@@ -325,4 +326,43 @@ void Indexer::saveMetadata()
     file_file.close();
 }
 
-void Indexer::loa
+void Indexer::loadMetadata() {
+    std::lock_guard<std::mutex> lock(metadata_mutex);
+
+    // Load directory metadata
+    std::ifstream dir_file(metadata_dir + "/directories.json");
+    if (dir_file) {
+        json dir_root;
+        dir_file >> dir_root;
+
+        for (auto& [dir_id, dir_json] : dir_root.items()) {
+            DirectoryMetadata dir_meta;
+            dir_meta.dir_id = dir_json["dir_id"];
+            dir_meta.name = dir_json["name"];
+            dir_meta.subdirs = dir_json["subdirs"].get<std::vector<std::string>>();
+            dir_meta.files = dir_json["files"].get<std::vector<std::string>>();
+            directory_metadata[dir_id] = dir_meta;
+        }
+    }
+
+    // Load file metadata
+    std::ifstream file_file(metadata_dir + "/files.json");
+    if (file_file) {
+        json file_root;
+        file_file >> file_root;
+
+        for (auto& [file_id, file_json] : file_root.items()) {
+            FileMetadata file_meta;
+            file_meta.file_id = file_json["file_id"];
+            file_meta.name = file_json["name"];
+            file_meta.type = file_json["type"];
+            file_meta.version_number = file_json["version_number"];
+            file_meta.timestamp = file_json["timestamp"];
+            file_meta.overall_hash = file_json["overall_hash"];
+            file_meta.status = file_json["status"];
+            file_meta.chunks = file_json["chunks"].get<std::vector<ChunkMetadata>>();
+            file_metadata[file_id] = file_meta;
+        }
+    }
+}
+

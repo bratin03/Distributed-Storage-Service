@@ -3,8 +3,11 @@
 #include <sys/inotify.h>
 #include <unistd.h>
 #include <iostream>
-#include <cstring>
+#include <string>
 #include <thread>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 // Watcher implementation
 Watcher::Watcher(const std::string& dir, FileSystemEventHandler* handler) 

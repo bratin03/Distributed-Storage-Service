@@ -5,7 +5,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
-#include "DB/db.hpp"
+#include "../DB/db.hpp"
 
 // Indexer class to manage metadata
 class Indexer {

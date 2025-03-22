@@ -2,9 +2,13 @@
 // File: SimpleChunker.cpp
 #include "Chunker.hpp"
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <openssl/sha.h>  // For SHA-256
+#include <openssl/evp.h>  // For hash functions
+#include <filesystem>
+namespace fs = std::filesystem;
 
 // Chunker implementation
 std::vector<ChunkMetadata> Chunker::splitFile(const std::string& file_path, const std::string& output_dir) {
@@ -108,34 +112,58 @@ void Chunker::reassembleFile(const std::string& output_path, const std::vector<C
 
 std::string Chunker::calculateChunkHash(const char* data, size_t size) {
     unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, data, size);
-    SHA256_Final(hash, &sha256);
-    
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new(); // Create a new context
+    if (!ctx) {
+        throw std::runtime_error("Failed to create EVP_MD_CTX");
+    }
+
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1 ||
+        EVP_DigestUpdate(ctx, data, size) != 1 ||
+        EVP_DigestFinal_ex(ctx, hash, nullptr) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Failed to compute SHA-256 hash");
+    }
+
+    EVP_MD_CTX_free(ctx); // Free the context
+
     std::stringstream ss;
     for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
         ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
     }
-    
+
     return ss.str();
 }
 
 std::string Chunker::calculateFileHash(const std::vector<ChunkMetadata>& chunks) {
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    
-    for (const auto& chunk : chunks) {
-        SHA256_Update(&sha256, chunk.chunk_id.c_str(), chunk.chunk_id.size());
-    }
-    
     unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_Final(hash, &sha256);
-    
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new(); // Create a new context
+    if (!ctx) {
+        throw std::runtime_error("Failed to create EVP_MD_CTX");
+    }
+
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Failed to initialize SHA-256 context");
+    }
+
+    for (const auto& chunk : chunks) {
+        if (EVP_DigestUpdate(ctx, chunk.chunk_id.c_str(), chunk.chunk_id.size()) != 1) {
+            EVP_MD_CTX_free(ctx);
+            throw std::runtime_error("Failed to update SHA-256 hash");
+        }
+    }
+
+    if (EVP_DigestFinal_ex(ctx, hash, nullptr) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Failed to finalize SHA-256 hash");
+    }
+
+    EVP_MD_CTX_free(ctx); // Free the context
+
     std::stringstream ss;
     for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
         ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
     }
-    
+
     return ss.str();
 }

@@ -1,5 +1,5 @@
 // main.cpp
-#include "dss_client.h"
+#include "dss_client.hpp"
 #include <csignal>
 #include <chrono>
 #include <atomic>

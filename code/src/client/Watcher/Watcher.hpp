@@ -5,7 +5,8 @@
 #include <vector>
 #include <map>
 #include <thread>
-#include "Synchronization/APISynchronizer.hpp"
+#include <atomic>
+#include "../Synchronization/APISynchronizer.hpp"
 
 // Watcher class using inotify
 class Watcher

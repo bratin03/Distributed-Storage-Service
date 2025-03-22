@@ -3,7 +3,10 @@
 #pragma once
 #include <vector>
 #include <string>
-#include "DB/db.hpp"
+#include "../DB/db.hpp"
+
+// Size of chunks for file splitting (1MB)
+constexpr size_t CHUNK_SIZE = 1024 * 1024;
 
 // Chunker class to split and reassemble files
 class Chunker
