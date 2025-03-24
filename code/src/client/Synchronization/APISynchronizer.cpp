@@ -7,7 +7,6 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-
 namespace fs = std::filesystem;
 
 // ApiClient implementation using cpp-httplib
