@@ -7,20 +7,20 @@
 #include <thread>
 #include <atomic>
 #include "../Synchronization/APISynchronizer.hpp"
+#include <inotify-cpp/NotifierBuilder.h>
 
 // Watcher class using inotify
 class Watcher
 {
 private:
-    int inotify_fd;
-    std::atomic<bool> running;
+    std::unique_ptr<inotify::Notifier> notifier;
     std::thread watch_thread;
-    std::string root_dir;
-    std::map<int, std::string> watch_descriptors;
+    std::atomic<bool> running;
     FileSystemEventHandler *event_handler;
+    std::mutex notifier_mutex;
+    std::string root_dir;
 
-    void watchThread();
-    void processEvent(struct inotify_event *event);
+    void handleEvent(const inotify::Notification& notification);
 
 public:
     Watcher(const std::string &dir, FileSystemEventHandler *handler);

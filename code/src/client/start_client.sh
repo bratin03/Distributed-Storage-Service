@@ -6,5 +6,5 @@ g++ -std=c++20 -pthread -I/usr/include/x86_64-linux-gnu -L/usr/lib \
     Indexer/Indexer.cpp \
     Synchronization/APISynchronizer.cpp \
     main.cpp \
-    -lcurl -lssl -lcrypto -o dss_client
+    -lcurl -lssl -lcrypto -linotify-cpp -o dss_client
 ./dss_client 

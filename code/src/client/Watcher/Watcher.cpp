@@ -6,138 +6,139 @@
 #include <string>
 #include <thread>
 #include <filesystem>
+#include <inotify-cpp/NotifierBuilder.h>
+#include <mutex>
 
 namespace fs = std::filesystem;
 
 // Watcher implementation
-Watcher::Watcher(const std::string& dir, FileSystemEventHandler* handler) 
-    : root_dir(dir), event_handler(handler), running(false) {
-    inotify_fd = inotify_init();
-    if (inotify_fd < 0) {
-        std::cerr << "Failed to initialize inotify: " << strerror(errno) << std::endl;
-        exit(EXIT_FAILURE);
-    }
+Watcher::Watcher(const std::string &dir, FileSystemEventHandler *handler)
+    : root_dir(dir), event_handler(handler), running(false)
+{
+    // Setup initial watch
+    notifier = inotify::BuildNotifier()
+                   .watchPathRecursively(root_dir)
+                   .ignoreFileOnce(".*") // Ignore hidden files
+                   .onEvents({inotify::Event::create,
+                              inotify::Event::modify,
+                              inotify::Event::remove,
+                              inotify::Event::moved_from,
+                              inotify::Event::moved_to},
+                             [this](const inotify::Notification &notification)
+                             {
+                                 handleEvent(notification);
+                             })
+                   .build();
 }
 
-Watcher::~Watcher() {
+Watcher::~Watcher()
+{
     stopWatching();
-    close(inotify_fd);
 }
 
-void Watcher::startWatching() {
-    if (running) return;
-    
+void Watcher::startWatching()
+{
     running = true;
-    
-    // Add watch for root directory
-    addWatch(root_dir);
-    
-    // Add watches for all subdirectories
-    for (const auto& entry : fs::recursive_directory_iterator(root_dir)) {
-        if (fs::is_directory(entry)) {
-            addWatch(entry.path().string());
-        }
-    }
-    
-    // Start the watch thread
-    watch_thread = std::thread(&Watcher::watchThread, this);
+    watch_thread = std::thread([this]()
+                               {
+        while (running) {
+            {
+                std::lock_guard<std::mutex> lock(notifier_mutex);
+                notifier->runOnce();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        } });
 }
 
-void Watcher::stopWatching() {
-    if (!running) return;
-    
+void Watcher::stopWatching()
+{
     running = false;
-    
-    if (watch_thread.joinable()) {
+    if (watch_thread.joinable())
+    {
         watch_thread.join();
     }
-    
-    // Remove all watches
-    for (const auto& [wd, path] : watch_descriptors) {
-        inotify_rm_watch(inotify_fd, wd);
-    }
-    
-    watch_descriptors.clear();
 }
 
-void Watcher::addWatch(const std::string& path) {
-    uint32_t mask = IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO;
-    int wd = inotify_add_watch(inotify_fd, path.c_str(), mask);
-    
-    if (wd < 0) {
-        std::cerr << "Failed to add watch for " << path << ": " << strerror(errno) << std::endl;
+void Watcher::addWatch(const std::string &path)
+{
+    std::lock_guard<std::mutex> lock(notifier_mutex);
+    try
+    {
+        if (fs::is_directory(path))
+        {
+            notifier->watchPathRecursively(path);
+            std::cout << "Added watch for: " << path << std::endl;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Failed to add watch for " << path
+                  << ": " << e.what() << std::endl;
+    }
+}
+
+void Watcher::handleEvent(const inotify::Notification &notification)
+{
+    const auto &path = notification.path;
+
+    // Skip hidden files and system files
+    if (path.filename().string().starts_with(".") ||
+        path.string().find("/.") != std::string::npos)
+    {
         return;
     }
-    
-    watch_descriptors[wd] = path;
-    std::cout << "Added watch for: " << path << std::endl;
-}
 
-void Watcher::watchThread() {
-    const size_t EVENT_SIZE = sizeof(struct inotify_event);
-    const size_t BUF_LEN = 1024 * (EVENT_SIZE + 16);
-    char buffer[BUF_LEN];
-    
-    while (running) {
-        ssize_t length = read(inotify_fd, buffer, BUF_LEN);
-        
-        if (length < 0) {
-            if (errno == EINTR) continue; // Interrupted system call
-            std::cerr << "Error reading inotify events: " << strerror(errno) << std::endl;
-            break;
+    if (notification.event & inotify::Event::create)
+    {
+        if (fs::is_directory(path))
+        {
+            addWatch(path.string()); // Add watch for new directory
+            event_handler->onDirectoryCreated(path.string());
         }
-        
-        // Process all events in the buffer
-        ssize_t i = 0;
-        while (i < length) {
-            struct inotify_event* event = (struct inotify_event*)&buffer[i];
-            processEvent(event);
-            i += EVENT_SIZE + event->len;
+        else
+        {
+            event_handler->onFileCreated(path.string());
         }
     }
-}
-
-void Watcher::processEvent(struct inotify_event* event) {
-    if (event->len == 0 || !event_handler) return;
-    
-    std::string path = watch_descriptors[event->wd];
-    std::string name = event->name;
-    std::string full_path = path + "/" + name;
-    
-    // Skip hidden files and directories starting with .dss
-    if (name.starts_with(".dss") || name.starts_with(".")) {
-        return;
+    else if (notification.event & inotify::Event::modify)
+    {
+        if (fs::is_regular_file(path))
+        {
+            event_handler->onFileModified(path.string());
+        }
     }
-    
-    if (event->mask & IN_CREATE) {
-        if (event->mask & IN_ISDIR) {
-            addWatch(full_path);
-            event_handler->onDirectoryCreated(full_path);
-        } else {
-            event_handler->onFileCreated(full_path);
+    else if (notification.event & inotify::Event::remove)
+    {
+        if (notification.event & inotify::Event::is_dir)
+        {
+            event_handler->onDirectoryDeleted(path.string());
         }
-    } else if (event->mask & IN_DELETE) {
-        if (event->mask & IN_ISDIR) {
-            event_handler->onDirectoryDeleted(full_path);
-        } else {
-            event_handler->onFileDeleted(full_path);
+        else
+        {
+            event_handler->onFileDeleted(path.string());
         }
-    } else if (event->mask & IN_MODIFY) {
-        if (!(event->mask & IN_ISDIR)) {
-            event_handler->onFileModified(full_path);
+    }
+    else if (notification.event & inotify::Event::moved_from)
+    {
+        if (fs::is_directory(path))
+        {
+            event_handler->onDirectoryDeleted(path.string());
         }
-    } else if (event->mask & IN_MOVED_FROM) {
-        if (event->mask & IN_ISDIR) {
-            event_handler->onDirectoryDeleted(full_path);
-        } else {
-            event_handler->onFileDeleted(full_path);
+        else
+        {
+            event_handler->onFileDeleted(path.string());
         }
-    } else if (event->mask & IN_MOVED_TO) {
-        if (event->mask & IN_ISDIR) {
-            addWatch(full_path);
-            event_handler->onDirectoryCreated(full_path);
-        } else {
-            event_handler->onFileCreated(full_path);
+    }
+    else if (notification.event & inotify::Event::moved_to)
+    {
+        if (fs::is_directory(path))
+        {
+            addWatch(path.string());
+            event_handler->onDirectoryCreated(path.string());
+        }
+        else
+        {
+            event_handler->onFileCreated(path.string());
         }
     }
 }
