@@ -13,6 +13,19 @@ std::unordered_map<std::string, json> directory_metadata;
 std::unordered_map<std::string, json> file_metadata;
 std::mutex metadata_lock;
 
+
+/*
+    Things to do:
+    -> authentication
+    -> heartbeat
+    -> notification server
+    -> logging (if possible)
+    -> error handling
+    -> connect with DB
+
+*/
+
+
 void create_directory(const Request &req, Response &res) {
     std::string dir_id = req.matches[1];
 
@@ -134,9 +147,9 @@ int main() {
 
     // File operations
     svr.Delete(R"(/delete_file/(\S+))", delete_file);
-    svr.Get(R"(/download_file/(\S+))", download_file);
-    svr.Post("/update_request", update_request);
-    svr.Post("/commit_update", commit_update);
+    // svr.Get(R"(/download_file/(\S+))", download_file);
+    // svr.Post("/update_request", update_request);
+    // svr.Post("/commit_update", commit_update);
 
     std::cout << "Metadata Server running on port 8080..." << std::endl;
     svr.listen("0.0.0.0", 8080);
