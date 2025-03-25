@@ -4,7 +4,7 @@
 #include <map>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
-#include "../lib/cpp-httplib/httplib.h"
+#include "../../../utils/libraries/cpp-httplib/httplib.h"
 #include "../Indexer/Indexer.hpp"
 #include "../Chunker/Chunker.hpp"
 using json = nlohmann::json;
