@@ -137,6 +137,12 @@ void delete_file(const Request &req, Response &res) {
 //     }
 // }
 
+
+void heartbeat_handler(const httplib::Request &, httplib::Response &res) {
+    res.set_content(R"({"status": "alive"})", "application/json");
+}
+
+
 int main() {
     Server svr;
 
@@ -150,6 +156,12 @@ int main() {
     // svr.Get(R"(/download_file/(\S+))", download_file);
     // svr.Post("/update_request", update_request);
     // svr.Post("/commit_update", commit_update);
+
+
+
+    // Heartbeat
+    svr.Get("/heartbeat", heartbeat_handler);
+
 
     std::cout << "Metadata Server running on port 8080..." << std::endl;
     svr.listen("0.0.0.0", 8080);
