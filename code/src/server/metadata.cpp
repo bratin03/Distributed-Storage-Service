@@ -22,8 +22,6 @@ std::mutex metadata_lock;
     -> logging (if possible)
     -> error handling
     -> connect with DB
-    
-
 
 */
 
