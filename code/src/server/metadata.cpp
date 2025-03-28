@@ -177,7 +177,7 @@ int main() {
     svr.Delete(R"(/delete_file/([\w-]+))", delete_file);
 
     // Heartbeat
-    svr.Get("/heartbeat", heartbeat_handler);
+    // svr.Get("/heartbeat", heartbeat_handler);
     
     std::cout << "Metadata Server running on port 8080..." << std::endl;
     svr.listen("0.0.0.0", 8080);
