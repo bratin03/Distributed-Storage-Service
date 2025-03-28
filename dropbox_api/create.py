@@ -7,20 +7,13 @@ with open('config.json', 'r') as config_file:
 
 access_token = config['access_token']
 
-# Specify the path in Dropbox where you want to upload the file
-dropbox_path = '/folder/file.txt'  # change as needed
+# Specify the path in Dropbox where you want to create the file
+dropbox_path = '/folder/new_file.txt'  # change as needed
 
-# Specify the expected current revision of the file on Dropbox
-expected_revision = "0163162083d101e00000002ca83cbb3"  # e.g., "a1c10ce0dd78"
+# Specify the content for the new file
+file_content = b"Hello, Dropbox! This is a new file created via the API."
 
-# Specify the local file you want to upload
-local_file = 'local_file.txt'
-
-# Read the file content to upload
-with open(local_file, 'rb') as f:
-    file_data = f.read()
-
-# Dropbox upload endpoint
+# Dropbox upload endpoint for creating (uploading) a file
 url = "https://content.dropboxapi.com/2/files/upload"
 
 # Set the headers, including authorization, API arguments, and content type.
@@ -28,15 +21,15 @@ headers = {
     "Authorization": "Bearer " + access_token,
     "Dropbox-API-Arg": json.dumps({
         "path": dropbox_path,
-        "mode": {".tag": "update", "update": expected_revision},
-        "autorename": False,  # In update mode, autorename is typically disabled.
+        "mode": "add",         # "add" mode creates a new file (or auto-renames if it exists)
+        "autorename": True,
         "mute": False
     }),
     "Content-Type": "application/octet-stream"
 }
 
 # Make the POST request to the Dropbox API
-response = requests.post(url, headers=headers, data=file_data)
+response = requests.post(url, headers=headers, data=file_content)
 
 # Properly print the JSON response with indentation
 try:

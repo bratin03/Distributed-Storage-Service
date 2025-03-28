@@ -92,7 +92,8 @@ DropboxResponse DropboxClient::performRequest(const std::string &url,
         }
         catch (...)
         {
-            // If parsing fails, leave metadata empty.
+            // If parsing fails, we can ignore it or set an error message.
+            response.metadata = nullptr; // or handle the error as needed
         }
     }
     // Free the headers list.
@@ -135,33 +136,96 @@ DropboxResponse DropboxClient::deleteFile(const std::string &dropboxPath)
     return performRequest(url, "", data, headers);
 }
 
-// List Content: Lists the content of a folder using the "files/list_folder" endpoint.
 DropboxResponse DropboxClient::listContent(const std::string &dropboxPath)
 {
     std::string url = "https://api.dropboxapi.com/2/files/list_folder";
 
+    // Set up headers
     struct curl_slist *headers = NULL;
     std::string authHeader = "Authorization: Bearer " + accessToken;
     headers = curl_slist_append(headers, authHeader.c_str());
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
+    // Prepare the initial JSON request
     nlohmann::json j;
     j["path"] = dropboxPath;
+    j["recursive"] = true; // Set to true to list all files in subdirectories.
     std::string data = j.dump();
 
-    return performRequest(url, "", data, headers);
+    // Perform the initial request
+    DropboxResponse response = performRequest(url, "", data, headers);
+    if (response.responseCode != 200)
+    {
+        // Return early if there is an error
+        return response;
+    }
+
+    // Parse the initial response and collect entries
+    nlohmann::json jsonResponse = nlohmann::json::parse(response.content);
+    nlohmann::json allEntries = jsonResponse["entries"];
+
+    // Continue retrieving more entries if there are additional pages
+    while (jsonResponse.value("has_more", false))
+    {
+        // Extract the cursor for the next batch
+        std::string cursor = jsonResponse["cursor"];
+        std::string continueUrl = "https://api.dropboxapi.com/2/files/list_folder/continue";
+
+        // Create JSON for the continue request
+        nlohmann::json continueJson;
+        continueJson["cursor"] = cursor;
+        std::string continueData = continueJson.dump();
+
+        // Perform the continue request
+        DropboxResponse continueResponse = performRequest(continueUrl, "", continueData, headers);
+        if (continueResponse.responseCode != 200)
+        {
+            // Break out if an error occurs
+            break;
+        }
+        jsonResponse = nlohmann::json::parse(continueResponse.content);
+        for (const auto &entry : jsonResponse["entries"])
+        {
+            allEntries.push_back(entry);
+        }
+    }
+
+    // Build final aggregated JSON response
+    nlohmann::json finalJson;
+    finalJson["entries"] = allEntries;
+
+    // IMPORTANT: If the last response contained a cursor, include it in the final JSON.
+    if (jsonResponse.contains("cursor"))
+    {
+        finalJson["cursor"] = jsonResponse["cursor"];
+    }
+
+    // Update the original response with the aggregated results
+    response.content = finalJson.dump();
+    response.metadata = finalJson;
+
+    return response;
 }
 
-// Modify File: Overwrite file content using the "files/upload" endpoint with mode "overwrite".
-DropboxResponse DropboxClient::modifyFile(const std::string &dropboxPath, const std::string &newContent)
+// Modify File: Overwrite file content using the "files/upload" endpoint with mode "update".
+DropboxResponse DropboxClient::modifyFile(const std::string &dropboxPath, const std::string &newContent, const std::string &rev)
 {
     std::string url = "https://content.dropboxapi.com/2/files/upload";
 
+    // Set up headers.
     struct curl_slist *headers = NULL;
     std::string authHeader = "Authorization: Bearer " + accessToken;
     headers = curl_slist_append(headers, authHeader.c_str());
     headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
-    std::string apiArg = "{\"path\": \"" + dropboxPath + "\", \"mode\": \"overwrite\", \"autorename\": false, \"mute\": false}";
+
+    // Construct the API argument JSON with mode "update" that includes the revision.
+    nlohmann::json apiArgJson;
+    apiArgJson["path"] = dropboxPath;
+    apiArgJson["mode"] = {{".tag", "update"}, {"update", rev}};
+    apiArgJson["autorename"] = false;
+    apiArgJson["mute"] = false;
+    std::string apiArg = apiArgJson.dump();
+
     std::string dropboxArgHeader = "Dropbox-API-Arg: " + apiArg;
     headers = curl_slist_append(headers, dropboxArgHeader.c_str());
 
@@ -199,4 +263,136 @@ DropboxResponse DropboxClient::readFile(const std::string &dropboxPath)
     headers = curl_slist_append(headers, dropboxArgHeader.c_str());
 
     return performRequest(url, apiArg, "", headers);
+}
+
+DropboxResponse DropboxClient::createFolder(const std::string &dropboxPath)
+{
+    // Dropbox API endpoint for creating a folder.
+    std::string url = "https://api.dropboxapi.com/2/files/create_folder_v2";
+
+    // Set up headers.
+    struct curl_slist *headers = NULL;
+    std::string authHeader = "Authorization: Bearer " + accessToken;
+    headers = curl_slist_append(headers, authHeader.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    // Prepare JSON data with required parameters.
+    nlohmann::json j;
+    j["path"] = dropboxPath;
+    j["autorename"] = false; // Set to true if you want Dropbox to auto-rename on conflict.
+    std::string data = j.dump();
+
+    // Perform the request.
+    return performRequest(url, "", data, headers);
+}
+
+DropboxResponse DropboxClient::deleteFolder(const std::string &dropboxPath)
+{
+    // Dropbox API endpoint for deleting a file or folder.
+    std::string url = "https://api.dropboxapi.com/2/files/delete_v2";
+
+    // Set up headers.
+    struct curl_slist *headers = NULL;
+    std::string authHeader = "Authorization: Bearer " + accessToken;
+    headers = curl_slist_append(headers, authHeader.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    // Prepare JSON data specifying the folder path to delete.
+    nlohmann::json j;
+    j["path"] = dropboxPath;
+    std::string data = j.dump();
+
+    // Perform the request.
+    return performRequest(url, "", data, headers);
+}
+
+DropboxResponse DropboxClient::getMetadata(const std::string &dropboxPath)
+{
+    std::string url = "https://api.dropboxapi.com/2/files/get_metadata";
+    struct curl_slist *headers = NULL;
+    std::string authHeader = "Authorization: Bearer " + accessToken;
+    headers = curl_slist_append(headers, authHeader.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    // Prepare the JSON request with the required parameters.
+    nlohmann::json j;
+    j["path"] = dropboxPath;
+    j["include_media_info"] = false;
+    j["include_deleted"] = false;
+    j["include_has_explicit_shared_members"] = false;
+    std::string data = j.dump();
+
+    DropboxResponse response = performRequest(url, "", data, headers);
+
+    // Attempt to parse the JSON content into metadata.
+    try
+    {
+        response.metadata = nlohmann::json::parse(response.content);
+    }
+    catch (const std::exception &e)
+    {
+        response.errorMessage = e.what();
+    }
+
+    return response;
+}
+
+DropboxResponse DropboxClient::longpollFolder(const std::string &cursor, int timeout)
+{
+    // Correct URL for Dropbox longpoll endpoint.
+    std::string url = "https://notify.dropboxapi.com/2/files/list_folder/longpoll";
+
+    // Set up headers. Note: Authorization header is not required for longpoll.
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    // Prepare JSON request with the cursor and timeout.
+    nlohmann::json j;
+    j["cursor"] = cursor;
+    j["timeout"] = timeout;
+    std::string data = j.dump();
+
+    // Perform the request.
+    DropboxResponse response = performRequest(url, "", data, headers);
+
+    // Parse the JSON response into metadata for debugging.
+    try {
+        response.metadata = nlohmann::json::parse(response.content);
+    } catch (const std::exception &e) {
+        response.errorMessage = e.what();
+    }
+
+    return response;
+}
+
+
+DropboxResponse DropboxClient::continueListing(const std::string &cursor)
+{
+    std::string continueUrl = "https://api.dropboxapi.com/2/files/list_folder/continue";
+
+    // Set up headers.
+    struct curl_slist *headers = NULL;
+    std::string authHeader = "Authorization: Bearer " + accessToken;
+    headers = curl_slist_append(headers, authHeader.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    // Prepare JSON request with the cursor.
+    nlohmann::json j;
+    j["cursor"] = cursor;
+    std::string data = j.dump();
+
+    // Perform the request.
+    DropboxResponse response = performRequest(continueUrl, "", data, headers);
+
+    // Attempt to parse the response content into metadata.
+    try
+    {
+        response.metadata = nlohmann::json::parse(response.content);
+    }
+    catch (const std::exception &e)
+    {
+        response.errorMessage = e.what();
+    }
+
+    return response;
 }

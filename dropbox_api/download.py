@@ -14,23 +14,28 @@ dropbox_file_path = "/folder/file.txt"  # change as needed
 url = "https://content.dropboxapi.com/2/files/download"
 
 # Set the required headers.
-# The 'Dropbox-API-Arg' header contains the JSON-encoded path of the file.
 headers = {
     "Authorization": "Bearer " + access_token,
     "Dropbox-API-Arg": json.dumps({"path": dropbox_file_path}),
 }
 
-# Make the POST request to download the file
-response = requests.post(url, headers=headers)
+try:
+    # Make the POST request to download the file
+    response = requests.post(url, headers=headers)
 
-# The file metadata is in the 'dropbox-api-result' response header.
-metadata = json.loads(response.headers.get("dropbox-api-result"))
-# The file content (binary data) is in the response body.
-file_content = response.content
+    # Check if the response is successful
+    if response.status_code == 200:
+        # Parse file metadata from the header "Dropbox-API-Result"
+        metadata = json.loads(response.headers["Dropbox-API-Result"])
+        print("Metadata:")
+        print(json.dumps(metadata, indent=4))
 
-# Print the file metadata
-print("Metadata:", metadata)
+        # Save the downloaded file content to a local file
+        with open("downloaded_file.txt", "wb") as f:
+            f.write(response.content)
+        print("File downloaded successfully.")
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
 
-# Optionally, save the file to disk
-with open("downloaded_file.txt", "wb") as f:
-    f.write(file_content)
+except Exception as e:
+    print("An error occurred:", e)

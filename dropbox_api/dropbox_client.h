@@ -25,10 +25,22 @@ public:
     DropboxResponse createFile(const std::string &dropboxPath, const std::string &fileContent);
     DropboxResponse deleteFile(const std::string &dropboxPath);
     DropboxResponse listContent(const std::string &dropboxPath);
-    DropboxResponse modifyFile(const std::string &dropboxPath, const std::string &newContent);
+    // Note: modifyFile now takes a revision parameter.
+    DropboxResponse modifyFile(const std::string &dropboxPath, const std::string &newContent, const std::string &rev);
     // For modifyDirectory, we pass a JSON object for parameters (e.g. moving or renaming).
     DropboxResponse modifyDirectory(const std::string &dropboxPath, const nlohmann::json &params);
     DropboxResponse readFile(const std::string &dropboxPath);
+    // New method to get file metadata.
+    DropboxResponse getMetadata(const std::string &dropboxPath);
+    DropboxResponse createFolder(const std::string &dropboxPath);
+    DropboxResponse deleteFolder(const std::string &dropboxPath);
+
+    // New method: Longpoll folder changes using the files/list_folder/longpoll endpoint.
+    // cursor: The cursor from a previous list_folder call.
+    // timeout: Maximum time (in seconds) to wait for changes.
+    DropboxResponse longpollFolder(const std::string &cursor, int timeout = 30);
+    // Add this declaration in the public section of DropboxClient:
+    DropboxResponse continueListing(const std::string &cursor);
 
 private:
     std::string accessToken;
