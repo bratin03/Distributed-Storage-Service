@@ -1,32 +1,54 @@
-// File: Watcher.hpp
-#pragma once
-#include <string>
-#include <functional>
-#include <vector>
-#include <map>
-#include <thread>
-#include <atomic>
-#include "../Synchronization/APISynchronizer.hpp"
+#ifndef FILEWATCHER_H
+#define FILEWATCHER_H
+
 #include <inotify-cpp/NotifierBuilder.h>
+#include <filesystem>
+#include <memory>
+#include <queue>
+#include <string>
+#include <thread>
 
-// Watcher class using inotify
-class Watcher
-{
-private:
-    std::unique_ptr<inotify::Notifier> notifier;
-    std::thread watch_thread;
-    std::atomic<bool> running;
-    FileSystemEventHandler *event_handler;
-    std::mutex notifier_mutex;
-    std::string root_dir;
-
-    void handleEvent(const inotify::Notification& notification);
-
-public:
-    Watcher(const std::string &dir, FileSystemEventHandler *handler);
-    ~Watcher();
-
-    void startWatching();
-    void stopWatching();
-    void addWatch(const std::string &path);
+// Enum to represent the supported file event types.
+enum class FileEventType {
+    CREATE,
+    MODIFY,
+    REMOVE,
+    MOVED_FROM,
+    MOVED_TO
 };
+
+// Struct to encapsulate a file event.
+struct FileEvent {
+    FileEventType type;
+    std::filesystem::path path;
+};
+
+class FileWatcher {
+public:
+    // Constructor takes a directory path (recursive watch) and a shared pointer to a queue
+    // where FileEvent objects will be pushed.
+    FileWatcher(const std::filesystem::path& pathToWatch,
+                std::shared_ptr<std::queue<FileEvent>> eventQueue);
+    ~FileWatcher();
+
+    // Starts the watcher in a separate thread.
+    void start();
+
+    // Stops the watcher.
+    void stop();
+
+private:
+    // Callback for inotify notifications.
+    void handleNotification(inotify::Notification notification);
+
+    // Helper to determine if a file is hidden (its filename starts with a dot).
+    bool isHidden(const std::filesystem::path& filePath);
+
+    std::filesystem::path m_pathToWatch;
+    std::shared_ptr<std::queue<FileEvent>> m_eventQueue;
+    std::unique_ptr<inotify::NotifierBuilder> m_notifier;
+    std::thread m_notifierThread;
+    bool m_running;
+};
+
+#endif // FILEWATCHER_H

@@ -1,144 +1,121 @@
-
 #include "Watcher.hpp"
-#include <sys/inotify.h>
-#include <unistd.h>
 #include <iostream>
-#include <string>
-#include <thread>
-#include <filesystem>
-#include <inotify-cpp/NotifierBuilder.h>
-#include <mutex>
 
-namespace fs = std::filesystem;
-
-// Watcher implementation
-Watcher::Watcher(const std::string &dir, FileSystemEventHandler *handler)
-    : root_dir(dir), event_handler(handler), running(false)
+// Constructor: Initializes the notifier to watch the specified path recursively,
+// and sets up the event callback for the desired events.
+FileWatcher::FileWatcher(const std::filesystem::path &pathToWatch,
+                         std::shared_ptr<std::queue<FileEvent>> eventQueue)
+    : m_pathToWatch(pathToWatch),
+      m_eventQueue(eventQueue),
+      m_running(false)
 {
-    // Setup initial watch
-    notifier = inotify::BuildNotifier()
-                   .watchPathRecursively(root_dir)
-                   .ignoreFileOnce(".*") // Ignore hidden files
-                   .onEvents({inotify::Event::create,
-                              inotify::Event::modify,
-                              inotify::Event::remove,
-                              inotify::Event::moved_from,
-                              inotify::Event::moved_to},
-                             [this](const inotify::Notification &notification)
-                             {
-                                 handleEvent(notification);
-                             })
-                   .build();
+    // Specify only the events we care about.
+    auto events = std::initializer_list<inotify::Event>{
+        inotify::Event::create,
+        inotify::Event::modify,
+        inotify::Event::remove,
+        inotify::Event::moved_from,
+        inotify::Event::moved_to};
+
+    // Build the notifier using inotify-cpp's builder.
+    m_notifier = std::unique_ptr<inotify::NotifierBuilder>(new inotify::NotifierBuilder(
+        inotify::BuildNotifier()
+            .watchPathRecursively(m_pathToWatch)
+            .onEvents(events, [this](inotify::Notification notification)
+                      { this->handleNotification(notification); })
+            // Optional: log unexpected events.
+            .onUnexpectedEvent([](inotify::Notification notification) {
+
+            })
+
+            ));
 }
 
-Watcher::~Watcher()
+// Destructor: stops the watcher if it is running.
+FileWatcher::~FileWatcher()
 {
-    stopWatching();
-}
-
-void Watcher::startWatching()
-{
-    running = true;
-    watch_thread = std::thread([this]()
-                               {
-        while (running) {
-            {
-                std::lock_guard<std::mutex> lock(notifier_mutex);
-                notifier->runOnce();
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        } });
-}
-
-void Watcher::stopWatching()
-{
-    running = false;
-    if (watch_thread.joinable())
+    stop();
+    if (m_notifierThread.joinable())
     {
-        watch_thread.join();
+        m_notifierThread.join();
     }
 }
 
-void Watcher::addWatch(const std::string &path)
+// Start the notifier loop on a separate thread.
+void FileWatcher::start()
 {
-    std::lock_guard<std::mutex> lock(notifier_mutex);
-    try
+    if (m_running)
     {
-        if (fs::is_directory(path))
-        {
-            notifier->watchPathRecursively(path);
-            std::cout << "Added watch for: " << path << std::endl;
-        }
+        return;
     }
-    catch (const std::exception &e)
+    m_running = true;
+    m_notifierThread = std::thread([this]()
+                                   { m_notifier->run(); });
+}
+
+// Stop the notifier and join the thread.
+void FileWatcher::stop()
+{
+    if (!m_running)
     {
-        std::cerr << "Failed to add watch for " << path
-                  << ": " << e.what() << std::endl;
+        return;
+    }
+    m_running = false;
+    m_notifier->stop();
+    if (m_notifierThread.joinable())
+    {
+        m_notifierThread.join();
     }
 }
 
-void Watcher::handleEvent(const inotify::Notification &notification)
+// Check if a file is hidden based on its filename.
+bool FileWatcher::isHidden(const std::filesystem::path &filePath)
 {
-    const auto &path = notification.path;
+    std::string filename = filePath.filename().string();
+    return !filename.empty() && filename[0] == '.';
+}
 
-    // Skip hidden files and system files
-    if (path.filename().string().starts_with(".") ||
-        path.string().find("/.") != std::string::npos)
+// Callback invoked when an inotify event is detected.
+void FileWatcher::handleNotification(inotify::Notification notification)
+{
+    // Skip hidden files.
+    if (isHidden(notification.path))
     {
         return;
     }
 
-    if (notification.event & inotify::Event::create)
+    // Prepare a FileEvent and set the path.
+    FileEvent fileEvent;
+    fileEvent.path = notification.path;
+
+    // Determine the event type.
+    uint32_t eventMask = static_cast<uint32_t>(notification.event);
+    if (eventMask & static_cast<uint32_t>(inotify::Event::create))
     {
-        if (fs::is_directory(path))
-        {
-            addWatch(path.string()); // Add watch for new directory
-            event_handler->onDirectoryCreated(path.string());
-        }
-        else
-        {
-            event_handler->onFileCreated(path.string());
-        }
+        fileEvent.type = FileEventType::CREATE;
     }
-    else if (notification.event & inotify::Event::modify)
+    else if (eventMask & static_cast<uint32_t>(inotify::Event::modify))
     {
-        if (fs::is_regular_file(path))
-        {
-            event_handler->onFileModified(path.string());
-        }
+        fileEvent.type = FileEventType::MODIFY;
     }
-    else if (notification.event & inotify::Event::remove)
+    else if (eventMask & static_cast<uint32_t>(inotify::Event::remove))
     {
-        if (notification.event & inotify::Event::is_dir)
-        {
-            event_handler->onDirectoryDeleted(path.string());
-        }
-        else
-        {
-            event_handler->onFileDeleted(path.string());
-        }
+        fileEvent.type = FileEventType::REMOVE;
     }
-    else if (notification.event & inotify::Event::moved_from)
+    else if (eventMask & static_cast<uint32_t>(inotify::Event::moved_from))
     {
-        if (fs::is_directory(path))
-        {
-            event_handler->onDirectoryDeleted(path.string());
-        }
-        else
-        {
-            event_handler->onFileDeleted(path.string());
-        }
+        fileEvent.type = FileEventType::MOVED_FROM;
     }
-    else if (notification.event & inotify::Event::moved_to)
+    else if (eventMask & static_cast<uint32_t>(inotify::Event::moved_to))
     {
-        if (fs::is_directory(path))
-        {
-            addWatch(path.string());
-            event_handler->onDirectoryCreated(path.string());
-        }
-        else
-        {
-            event_handler->onFileCreated(path.string());
-        }
+        fileEvent.type = FileEventType::MOVED_TO;
     }
+    else
+    {
+        // If event does not match one of our tracked types, ignore it.
+        return;
+    }
+
+    // Push the event onto the queue.
+    m_eventQueue->push(fileEvent);
 }
