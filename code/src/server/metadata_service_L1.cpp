@@ -5,6 +5,7 @@
 #include <mutex>
 #include <nlohmann/json.hpp> // JSON parsing
 #include <jwt-cpp/jwt.h>
+#include<bits/stdc++.h>
 
 using json = nlohmann::json;
 using namespace httplib;
@@ -108,23 +109,6 @@ void create_directory(const Request &req, Response &res) {
     res.set_content(R"({"message": "Directory created"})", "application/json");
 }
 
-void delete_directory(const Request &req, Response &res) {
-    std::string userID;
-    if (!authenticate_request(req, res, userID)) return;
-    
-    std::string dir_id = req.matches[1];
-    std::string key = userID + ":" + dir_id;
-    
-    std::lock_guard<std::mutex> lock(metadata_lock);
-    if (!directory_metadata.count(key)) {
-        res.status = 404;
-        res.set_content(R"({"error": "Directory not found"})", "application/json");
-        return;
-    }
-    
-    directory_metadata.erase(key);
-    res.set_content(R"({"message": "Directory deleted"})", "application/json");
-}
 
 void list_directory(const Request &req, Response &res) {
     std::string userID;
@@ -160,6 +144,25 @@ void delete_file(const Request &req, Response &res) {
     file_metadata.erase(key);
     res.set_content(R"({"message": "File deleted"})", "application/json");
 }
+
+void delete_directory(const Request &req, Response &res) {
+    std::string userID;
+    if (!authenticate_request(req, res, userID)) return;
+    
+    std::string dir_id = req.matches[1];
+    std::string key = userID + ":" + dir_id;
+    
+    std::lock_guard<std::mutex> lock(metadata_lock);
+    if (!directory_metadata.count(key)) {
+        res.status = 404;
+        res.set_content(R"({"error": "Directory not found"})", "application/json");
+        return;
+    }
+    
+    directory_metadata.erase(key);
+    res.set_content(R"({"message": "Directory deleted"})", "application/json");
+}
+
 
 // void heartbeat_handler(const Request &, Response &res) {
 //     res.set_content(R"({"status": "alive"})", "application/json");
