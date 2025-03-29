@@ -8,7 +8,8 @@
 #include <string>
 #include <vector>
 
-class File_Metadata {
+class File_Metadata
+{
 public:
   File_Metadata();
 
@@ -19,7 +20,6 @@ public:
   bool storeToDatabase(std::shared_ptr<rocksdb::DB> db);
   bool loadFromDatabase(std::shared_ptr<rocksdb::DB> db);
 
-private:
   std::string fileName;
   uint64_t fileSize;
   std::string rev;
@@ -28,7 +28,8 @@ private:
   std::string file_content;
 };
 
-class Directory_Metadata {
+class Directory_Metadata
+{
 public:
   Directory_Metadata();
 
@@ -41,7 +42,6 @@ public:
   std::vector<std::string> files;
   std::vector<std::string> directories;
 
-private:
   std::string directoryName;
 };
 

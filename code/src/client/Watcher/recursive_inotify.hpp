@@ -30,7 +30,7 @@ enum class InotifyEventType {
 // This function sets up a recursive inotify watcher and pushes events
 // into the provided thread-safe queue.
 // It will run until an error occurs (or you kill the thread).
-void watch_directory(
+inline void watch_directory(
     const std::string &root_dir,
     std::shared_ptr<std::queue<std::pair<InotifyEventType, std::string>>>
         eventQueue,
