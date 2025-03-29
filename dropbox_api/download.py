@@ -8,7 +8,7 @@ with open("config.json", "r") as config_file:
 access_token = config["access_token"]
 
 # Specify the Dropbox file path to download
-dropbox_file_path = "/folder/file.txt"  # change as needed
+dropbox_file_path = "/B/x.txt"  # change as needed
 
 # Dropbox download endpoint URL
 url = "https://content.dropboxapi.com/2/files/download"
