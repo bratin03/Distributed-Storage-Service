@@ -18,7 +18,7 @@ headers = {
 
 # Define the payload without include_property_groups if not needed
 payload = {
-    "path": "/folder/file.txt",  # The file path
+    "path": "/B",  # The file path
     "include_media_info": True,
     "include_deleted": False,
     "include_has_explicit_shared_members": True

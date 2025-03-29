@@ -91,6 +91,9 @@ bool authenticate_request(const Request &req, Response &res, std::string &userID
     return true;
 }
 
+
+
+
 void create_directory(const Request &req, Response &res) {
     std::string userID;
     if (!authenticate_request(req, res, userID)) return;
@@ -105,8 +108,35 @@ void create_directory(const Request &req, Response &res) {
         return;
     }
     
-    directory_metadata[key] = json::object();
-    res.set_content(R"({"message": "Directory created"})", "application/json");
+    /*
+        Example metadata structure 
+        :
+        "owner": userID,
+        "timestamp": 1690000000, // Unix timestamp
+            "subdirectories": {
+                "subdir1": ["IP1:Port1", "IP2:Port2"],
+                "subdir2": ["IP3:Port3"]
+            },
+            "files": {
+                "file1.txt": ["IP4:Port4"],
+                "file2.txt": ["IP5:Port5", "IP6:Port6"]
+            }
+    
+        Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points    
+    */
+
+   // Create structured JSON metadata
+   json metadata = {
+    {"owner", userID},
+    {"timestamp", std::time(nullptr)},  // Store creation timestamp
+    {"subdirectories", json::object()}, // Map of subdir -> [endpoints]
+    {"files", json::object()}           // Map of file -> [endpoints]
+    };
+
+
+    directory_metadata[key] = metadata;
+
+    res.set_content(R"({"message": "Directory created", "metadata": )" + metadata.dump() + "}", "application/json");
 }
 
 
