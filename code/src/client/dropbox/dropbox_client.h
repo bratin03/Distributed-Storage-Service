@@ -8,19 +8,21 @@
 #include <string>
 
 // Struct to hold a Dropbox response.
-struct DropboxResponse {
+struct DropboxResponse
+{
   int responseCode;         // HTTP response code or CURL error code.
   std::string errorMessage; // Error message, if any.
-  std::string content; // Content of the response (e.g. file content or API JSON
-                       // result).
-  nlohmann::json metadata; // Parsed JSON metadata (if applicable).
+  std::string content;      // Content of the response (e.g. file content or API JSON
+                            // result).
+  nlohmann::json metadata;  // Parsed JSON metadata (if applicable).
 };
 
-class DropboxClient {
+class DropboxClient
+{
 public:
   // Constructor that takes the path to a config file and reads the access
   // token.
-  DropboxClient(const std::string &configPath);
+  DropboxClient(const std::string &token);
   ~DropboxClient();
 
   // Dropbox operations.
@@ -61,5 +63,7 @@ private:
 };
 
 void bootup_1(const nlohmann::json &config, std::shared_ptr<rocksdb::DB> db);
-
+void bootup_2(std::shared_ptr<rocksdb::DB> db,
+              std::shared_ptr<DropboxClient> dropboxClient,
+              nlohmann::json &config);
 #endif // DROPBOX_CLIENT_H

@@ -39,6 +39,12 @@ int main() {
   std::shared_ptr<rocksdb::DB> db(raw_db, [](rocksdb::DB* ptr) { delete ptr; });
 
   bootup_1(config, db);
-
+  if(!config.contains("access_token")) {
+    throw std::runtime_error("access_token not found in config file");
+  }
+  std::string access_token = config["access_token"];
+  std::shared_ptr<DropboxClient> dropboxClient =
+      std::make_shared<DropboxClient>(access_token);
+  bootup_2(db, dropboxClient, config);
   return 0;
 }
