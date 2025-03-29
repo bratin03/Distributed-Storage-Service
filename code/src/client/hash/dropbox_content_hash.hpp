@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include <algorithm> // for std::min
-#include <stdexcept>
 
 // Include PicoSHA2 – make sure picosha2.h is available in your project
 #include "picosha2.h"
