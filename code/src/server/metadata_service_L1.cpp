@@ -125,11 +125,12 @@ void create_directory(const Request &req, Response &res) {
         Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points    
     */
 
-    json metadata = {
-        {"owner", userID},
-        {"timestamp", std::time(nullptr)},  // Store creation timestamp
-        {"subdirectories", json::array()},  // Empty list for subdirectories
-        {"files", json::array()}            // Empty list for files
+   // Create structured JSON metadata
+   json metadata = {
+    {"owner", userID},
+    {"timestamp", std::time(nullptr)},  // Store creation timestamp
+    {"subdirectories", json::object()}, // Map of subdir -> [endpoints]
+    {"files", json::object()}           // Map of file -> [endpoints]
     };
 
 
