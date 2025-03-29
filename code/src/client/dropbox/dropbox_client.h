@@ -1,6 +1,8 @@
 #ifndef DROPBOX_CLIENT_H
 #define DROPBOX_CLIENT_H
 
+#include "../logger/logger.h"
+#include <fstream>
 #include "../metadata_dropbox/metadata.h"
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
@@ -62,8 +64,79 @@ private:
                                  struct curl_slist *headers);
 };
 
+namespace FileSystemUtil
+{
+
+  // Helper to build a filesystem path from base and relative parts.
+  inline std::filesystem::path buildPath(const std::string &base, const std::string &relative)
+  {
+    return std::filesystem::path(base) / relative;
+  }
+
+  // Create a directory with error logging.
+  inline void createDirectory(const std::string &relativePath, const std::string &basePath)
+  {
+    auto dirPath = buildPath(basePath, relativePath);
+    std::error_code ec;
+    bool created = std::filesystem::create_directories(dirPath, ec);
+    if (ec)
+    {
+      Logger::error("Error creating directory '" + dirPath.string() + "': " + ec.message());
+    }
+    else if (created)
+    {
+      Logger::info("Created directory: " + dirPath.string());
+    }
+    else
+    {
+      Logger::info("Directory already exists: " + dirPath.string());
+    }
+  }
+
+  // Create a file with provided content.
+  inline void createFile(const std::string &relativePath, const std::string &basePath, const std::string &content)
+  {
+    auto filePath = buildPath(basePath, relativePath);
+    std::ofstream file(filePath);
+    if (file.is_open())
+    {
+      file << content;
+      file.close();
+      Logger::info("Created file: " + filePath.string());
+    }
+    else
+    {
+      Logger::error("Error creating file '" + filePath.string() + "'");
+    }
+  }
+
+  // Read and return file content.
+  inline std::string readFileContent(const std::string &relativePath, const std::string &basePath)
+  {
+    auto filePath = buildPath(basePath, relativePath);
+    std::ifstream file(filePath);
+    if (file.is_open())
+    {
+      std::string content((std::istreambuf_iterator<char>(file)),
+                          std::istreambuf_iterator<char>());
+      file.close();
+      return content;
+    }
+    else
+    {
+      Logger::error("Error reading file '" + filePath.string() + "'");
+      return "";
+    }
+  }
+
+} // namespace FileSystemUtil
+
 void bootup_1(const nlohmann::json &config, std::shared_ptr<rocksdb::DB> db);
 void bootup_2(std::shared_ptr<rocksdb::DB> db,
               std::shared_ptr<DropboxClient> dropboxClient,
               nlohmann::json &config);
+void bootup_3(std::shared_ptr<rocksdb::DB> db,
+              std::shared_ptr<DropboxClient> dropboxClient,
+              nlohmann::json &config);
+
 #endif // DROPBOX_CLIENT_H
