@@ -101,8 +101,8 @@ bool authenticate_request(const Request &req, Response &res, std::string &userID
 /*
     Example metadata structure 
     :
-    "owner": userID,
-    "timestamp": 1690000000, // Unix timestamp
+        "owner": userID,
+        "timestamp": 1690000000, // Unix timestamp
         "subdirectories": {
             "subdir1": ["IP1:Port1", "IP2:Port2"],
             "subdir2": ["IP3:Port3"]
@@ -189,6 +189,78 @@ void list_directory(const Request &req, Response &res) {
     
     res.set_content(directory_metadata[key].dump(), "application/json");
 }
+
+
+void create_file(const Request &req, Response &res) {
+    std::string userID;
+    if (!authenticate_request(req, res, userID)) return;
+
+    std::string file_path = req.matches[1]; // Extract file path from request
+    json body_json = json::parse(req.body);
+    
+    if (!body_json.contains("file_type")) {
+        res.status = 400;
+        res.set_content(R"({"error": "Missing file_type"})", "application/json");
+        return;
+    }
+    
+    std::string file_type = body_json["file_type"];
+    std::string key = userID + ":" + file_path;
+    
+    std::lock_guard<std::mutex> lock(metadata_lock);
+
+    // Extract parent directory
+    size_t last_slash = file_path.find_last_of('/');
+    if (last_slash == std::string::npos) {
+        res.status = 400;
+        res.set_content(R"({"error": "Invalid file path"})", "application/json");
+        return;
+    }
+
+    std::string parent_dir = file_path.substr(0, last_slash);
+    std::string parent_key = userID + ":" + parent_dir;
+
+    // Check if parent directory exists
+    if (!directory_metadata.count(parent_key)) {
+        res.status = 404;
+        res.set_content(R"({"error": "Parent directory not found"})", "application/json");
+        return;
+    }
+
+    // Check if file already exists
+    json &parent_metadata = directory_metadata[parent_key];
+
+    std::string filename = file_path.substr(last_slash + 1); // Extract filename.ext
+        if (parent_metadata["files"].contains(filename)) {
+        res.status = 409;
+        res.set_content(R"({"error": "File already exists"})", "application/json");
+        return;
+    }
+
+    // Select 3 metadata servers
+    std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
+
+    // Update parent directory metadata to include the new file
+    parent_metadata["files"][filename] = {
+        {"file_type", file_type},
+        {"endpoints", chosen_servers}
+    };
+    
+    // Create file metadata
+    directory_metadata[key] = {
+        {"owner", userID},
+        {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
+        {"file_type", file_type},
+        {"endpoints", chosen_servers},
+        {"parent_dir", parent_dir}
+    };
+
+    res.set_content(R"({"message": "File created successfully"})", "application/json");
+}
+
+
+
+
 
 void delete_file(const Request &req, Response &res) {
     std::string userID;
