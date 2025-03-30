@@ -20,6 +20,11 @@ std::unordered_map<std::string, json> directory_metadata;
 std::unordered_map<std::string, json> file_metadata;
 std::mutex metadata_lock;
 
+
+// Static list of metadata server endpoints (to be replaced with distributed store later)
+std::vector<std::string> metadata_servers = {"http://server1:8080", "http://server2:8080", "http://server3:8080"};
+
+
 // Function to verify JWT token and extract userID
 std::optional<std::string> verify_jwt(const std::string &token) {
     // Ensure that the PUBLIC_KEY is correctly formatted and valid for the RS256 algorithm.
@@ -93,7 +98,24 @@ bool authenticate_request(const Request &req, Response &res, std::string &userID
 
 
 
+/*
+    Example metadata structure 
+    :
+    "owner": userID,
+    "timestamp": 1690000000, // Unix timestamp
+        "subdirectories": {
+            "subdir1": ["IP1:Port1", "IP2:Port2"],
+            "subdir2": ["IP3:Port3"]
+        },
+        "files": {
+            "file1.txt": ["IP4:Port4"],
+            "file2.txt": ["IP5:Port5", "IP6:Port6"]
+        },
+        "endpoints": ["IP1:Port1", "IP2:Port2", "IP3:Port3"]
 
+    Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points    
+*/
+// Function to handle directory creation
 void create_directory(const Request &req, Response &res) {
     std::string userID;
     if (!authenticate_request(req, res, userID)) return;
@@ -102,42 +124,53 @@ void create_directory(const Request &req, Response &res) {
     std::string key = userID + ":" + dir_id;
     
     std::lock_guard<std::mutex> lock(metadata_lock);
+
+    // Check if the directory already exists
     if (directory_metadata.count(key)) {
         res.status = 400;
         res.set_content(R"({"error": "Directory already exists"})", "application/json");
         return;
     }
-    
-    /*
-        Example metadata structure 
-        :
-        "owner": userID,
-        "timestamp": 1690000000, // Unix timestamp
-            "subdirectories": {
-                "subdir1": ["IP1:Port1", "IP2:Port2"],
-                "subdir2": ["IP3:Port3"]
-            },
-            "files": {
-                "file1.txt": ["IP4:Port4"],
-                "file2.txt": ["IP5:Port5", "IP6:Port6"]
-            }
-    
-        Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points    
-    */
 
-   // Create structured JSON metadata
-   json metadata = {
-    {"owner", userID},
-    {"timestamp", std::time(nullptr)},  // Store creation timestamp
-    {"subdirectories", json::object()}, // Map of subdir -> [endpoints]
-    {"files", json::object()}           // Map of file -> [endpoints]
+    // Check if the immediate parent directory exists
+    size_t last_slash = dir_id.find_last_of('/');
+    std::string parent_dir, parent_key;
+    if (last_slash != std::string::npos) {
+        parent_dir = dir_id.substr(0, last_slash);
+        parent_key = userID + ":" + parent_dir;
+        
+        if (!directory_metadata.count(parent_key)) {
+            res.status = 404;
+            res.set_content(R"({"error": "Parent directory not found"})", "application/json");
+            return;
+        }
+
+        // Modify parent metadata to include the new subdirectory
+        directory_metadata[parent_key]["subdirectories"][dir_id] = json::array();  // Empty list for now
+    }
+
+    // Select 3 metadata servers (for now from the static list)
+    std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
+    
+    // Store the new directory's metadata
+    directory_metadata[key] = {
+        {"owner", userID},
+        {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
+        {"subdirectories", json::object()},
+        {"files", json::object()},
+        {"endpoints", chosen_servers},
+        {"parent_dir", parent_dir}        
     };
 
-
-    directory_metadata[key] = metadata;
+    // Update parent metadata with chosen endpoints
+    if (!parent_key.empty()) {  // Since parent_key was already set, just check if it exists
+        directory_metadata[parent_key]["subdirectories"][dir_id] = chosen_servers;
+    }
 
     res.set_content(R"({"message": "Directory created", "metadata": )" + metadata.dump() + "}", "application/json");
 }
+
+
 
 
 void list_directory(const Request &req, Response &res) {
