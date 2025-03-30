@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <algorithm>
 #include <stdexcept>
 #include <rocksdb/db.h>
@@ -21,94 +22,82 @@ unsigned int event_threshold;
 namespace fs = std::filesystem;
 
 //================== Dropbox Utilities ==================
-std::string fetchDropboxFileContent(const std::string &filePath, std::shared_ptr<DropboxClient> dropboxClient)
+namespace DropboxUtils
 {
-  Logger::debug("Downloading file content for: " + filePath);
-  auto response = dropboxClient->readFile(filePath);
-  Logger::info("Download response for '" + filePath + "': " + std::to_string(response.responseCode));
-  Logger::debug("Download content: " + response.content);
-  if (response.responseCode != 200)
-    Logger::error("Failed to download file content for: " + filePath + ". Response: " + response.content);
-  return (response.responseCode == 200) ? response.content : "";
-}
+
+  std::string downloadFileContent(const std::string &filePath, std::shared_ptr<DropboxClient> dropboxClient)
+  {
+    auto response = dropboxClient->readFile(filePath);
+    if (response.responseCode != 200)
+      Logger::error("Failed to download file content for: " + filePath + ". Response: " + response.content);
+    return (response.responseCode == 200) ? response.content : "";
+  }
+
+} // namespace DropboxUtils
 
 //================== File System Utilities ==================
-namespace FileSystem
+namespace FileSystemUtils
 {
 
-  bool createLocalDirectory(const std::string &relativePath, const fs::path &basePath)
+  bool createDirectoryIfNotExists(const std::string &relativePath, const fs::path &basePath)
   {
     fs::path fullPath = basePath / relativePath;
-    Logger::debug("Attempting to create directory: " + fullPath.string());
     std::error_code ec;
     if (!fs::create_directories(fullPath, ec))
     {
       if (ec)
       {
-        Logger::error("Failed to create directory: " + fullPath.string() + " (" + ec.message() + ")");
+        Logger::error("Error creating directory: " + fullPath.string());
         return false;
       }
     }
-    Logger::info("Created directory: " + fullPath.string());
     return true;
   }
 
-  void removeFileSystemEntry(const std::string &name, const fs::path &basePath)
+  void deleteLocalEntry(const std::string &name, const fs::path &basePath)
   {
     fs::path fullPath = basePath / name;
-    Logger::debug("Attempting to remove filesystem entry: " + fullPath.string());
     std::error_code ec;
     if (!fs::exists(fullPath, ec))
     {
-      Logger::error("Path does not exist: " + fullPath.string());
       return;
     }
     if (fs::is_directory(fullPath, ec))
     {
       auto count = fs::remove_all(fullPath, ec);
       if (ec)
-      {
-        Logger::error("Failed to delete directory: " + fullPath.string() + " (" + ec.message() + ")");
-      }
+        Logger::error("Failed to remove directory: " + fullPath.string());
       else
-      {
-        Logger::info("Deleted directory: " + fullPath.string() + " (" + std::to_string(count) + " items removed)");
-      }
+        Logger::info("Removed directory (" + std::to_string(count) + " entries): " + fullPath.string());
     }
     else
     {
       bool removed = fs::remove(fullPath, ec);
       if (!removed || ec)
-      {
-        Logger::error("Failed to delete file: " + fullPath.string() + " (" + ec.message() + ")");
-      }
+        Logger::error("Failed to remove file: " + fullPath.string());
       else
-      {
-        Logger::info("Deleted file: " + fullPath.string());
-      }
+        Logger::info("Removed file: " + fullPath.string());
     }
   }
 
-} // namespace FileSystem
+} // namespace FileSystemUtils
 
 //================== Database Metadata Utilities ==================
-namespace Database
+namespace DatabaseUtils
 {
 
-  bool removeDBEntry(std::shared_ptr<rocksdb::DB> db, const std::string &key, const std::string &entryType)
+  bool deleteDBEntry(std::shared_ptr<rocksdb::DB> db, const std::string &key, const std::string &entryType)
   {
-    Logger::debug("Attempting to delete " + entryType + " from database: " + key);
     auto status = db->Delete(rocksdb::WriteOptions(), key);
     if (!status.ok())
     {
-      Logger::error("Failed to delete " + entryType + " from database: " + key);
+      Logger::error("Failed to delete " + entryType + " entry in DB: " + key);
       return false;
     }
-    Logger::info("Deleted " + entryType + " from database: " + key);
     return true;
   }
 
-  std::string extractParentDirectory(const std::string &key, bool isDirectory = false)
+  std::string getParentDirectoryKey(const std::string &key, bool isDirectory = false)
   {
     std::string keyCopy = key;
     if (isDirectory && !keyCopy.empty() && keyCopy.back() == '/')
@@ -119,45 +108,35 @@ namespace Database
     std::string parentDir = keyCopy.substr(0, lastSlash);
     if (parentDir.empty() || parentDir.back() != '/')
       parentDir += "/";
-    Logger::debug("Extracted parent directory: " + parentDir + " from key: " + key);
     return parentDir;
   }
 
-  bool addFileToParentDirectory(std::shared_ptr<rocksdb::DB> db, const std::string &fileKey)
+  bool registerFileInParentDirectory(std::shared_ptr<rocksdb::DB> db, const std::string &fileKey)
   {
-    std::string parentDir = extractParentDirectory(fileKey);
+    std::string parentDir = getParentDirectoryKey(fileKey);
     if (parentDir.empty())
     {
-      Logger::error("Invalid file key: " + fileKey);
       return false;
     }
     Directory_Metadata parentMeta;
     parentMeta.setDirectoryName(parentDir);
     if (!parentMeta.loadFromDatabase(db))
-    {
-      Logger::error("Parent directory not found in database: " + parentDir);
       return false;
-    }
     if (std::find(parentMeta.files.begin(), parentMeta.files.end(), fileKey) == parentMeta.files.end())
     {
       parentMeta.files.push_back(fileKey);
       if (!parentMeta.storeToDatabase(db))
       {
-        Logger::error("Failed to update parent directory metadata in database: " + parentDir);
+        Logger::error("Failed to store updated metadata for parent directory: " + parentDir);
         return false;
       }
-      Logger::info("Added file to parent directory: " + fileKey);
-    }
-    else
-    {
-      Logger::warning("File already exists in parent directory's list: " + fileKey);
     }
     return true;
   }
 
-  bool removeFileFromParentDirectory(std::shared_ptr<rocksdb::DB> db, const std::string &fileKey)
+  bool unregisterFileFromParentDirectory(std::shared_ptr<rocksdb::DB> db, const std::string &fileKey)
   {
-    std::string parentDir = extractParentDirectory(fileKey);
+    std::string parentDir = getParentDirectoryKey(fileKey);
     if (parentDir.empty())
     {
       Logger::error("Invalid file key: " + fileKey);
@@ -179,7 +158,7 @@ namespace Database
         Logger::error("Failed to update parent directory metadata in database: " + parentDir);
         return false;
       }
-      Logger::info("Removed file from parent directory: " + fileKey);
+      Logger::info("Unregistered file from parent directory: " + fileKey);
     }
     else
     {
@@ -188,9 +167,9 @@ namespace Database
     return true;
   }
 
-  bool addDirectoryToParent(std::shared_ptr<rocksdb::DB> db, const std::string &dirKey)
+  bool registerDirectoryInParent(std::shared_ptr<rocksdb::DB> db, const std::string &dirKey)
   {
-    std::string parentDir = extractParentDirectory(dirKey, true);
+    std::string parentDir = getParentDirectoryKey(dirKey, true);
     if (parentDir.empty())
     {
       Logger::error("Invalid directory key: " + dirKey);
@@ -211,7 +190,7 @@ namespace Database
         Logger::error("Failed to update parent directory metadata in database: " + parentDir);
         return false;
       }
-      Logger::info("Added directory to parent directory: " + dirKey);
+      Logger::info("Registered directory in parent: " + dirKey);
     }
     else
     {
@@ -220,9 +199,9 @@ namespace Database
     return true;
   }
 
-  bool removeDirectoryFromParent(std::shared_ptr<rocksdb::DB> db, const std::string &dirKey)
+  bool unregisterDirectoryFromParent(std::shared_ptr<rocksdb::DB> db, const std::string &dirKey)
   {
-    std::string parentDir = extractParentDirectory(dirKey, true);
+    std::string parentDir = getParentDirectoryKey(dirKey, true);
     if (parentDir.empty())
     {
       Logger::error("Invalid directory key: " + dirKey);
@@ -244,7 +223,7 @@ namespace Database
         Logger::error("Failed to update parent directory metadata in database: " + parentDir);
         return false;
       }
-      Logger::info("Removed directory from parent directory: " + dirKey);
+      Logger::info("Unregistered directory from parent: " + dirKey);
     }
     else
     {
@@ -255,7 +234,7 @@ namespace Database
 
   void deleteDirectoryRecursively(std::shared_ptr<rocksdb::DB> db, const std::string &dirKey)
   {
-    Logger::debug("Deleting directory in DB recursively: " + dirKey);
+    Logger::debug("Deleting directory recursively in DB: " + dirKey);
     Directory_Metadata meta;
     meta.setDirectoryName(dirKey);
     if (!meta.loadFromDatabase(db))
@@ -263,10 +242,10 @@ namespace Database
       Logger::error("Directory not found in database: " + dirKey);
       return;
     }
-    removeDBEntry(db, dirKey, "directory");
+    deleteDBEntry(db, dirKey, "directory");
     for (const auto &fileKey : meta.files)
     {
-      removeDBEntry(db, fileKey, "file");
+      deleteDBEntry(db, fileKey, "file");
     }
     for (const auto &subDirKey : meta.directories)
     {
@@ -274,48 +253,44 @@ namespace Database
     }
   }
 
-} // namespace Database
+} // namespace DatabaseUtils
 
 //================== Event Processing Utilities ==================
 namespace EventProcessor
 {
 
-  void processFolderUpdate(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db)
+  void handleFolderUpdate(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db)
   {
     std::string fullPath = event["full_path"].get<std::string>() + "/";
-    Logger::debug("Processing folder update for: " + fullPath);
+    Logger::debug("Handling folder update for: " + fullPath);
     Directory_Metadata dirMeta;
     dirMeta.setDirectoryName(fullPath);
     if (!dirMeta.loadFromDatabase(db))
     {
-      Logger::info("Directory not found in database, creating: " + fullPath);
+      Logger::info("Directory not in database. Creating new entry: " + fullPath);
       dirMeta.storeToDatabase(db);
-      Database::addDirectoryToParent(db, fullPath);
+      DatabaseUtils::registerDirectoryInParent(db, fullPath);
     }
     std::string relativePath = fullPath.substr(user.size() + 1);
-    if (!FileSystem::createLocalDirectory(relativePath, base_path))
-    {
+    if (!FileSystemUtils::createDirectoryIfNotExists(relativePath, base_path))
       Logger::error("Failed to create local directory: " + relativePath);
-    }
     else
-    {
       Logger::info("Local directory created for folder update: " + relativePath);
-    }
   }
 
-  void processFileUpdate(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db,
-                         std::shared_ptr<DropboxClient> dropboxClient)
+  void handleFileUpdate(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db,
+                        std::shared_ptr<DropboxClient> dropboxClient)
   {
-    Logger::debug("Processing file update event: " + event.dump());
+    Logger::debug("Handling file update event: " + event.dump());
     File_Metadata fileMeta;
-    std::string fileName = event["full_path"].get<std::string>();
-    fileMeta.setFileName(fileName);
+    std::string filePath = event["full_path"].get<std::string>();
+    fileMeta.setFileName(filePath);
 
     if (!fileMeta.loadFromDatabase(db))
     {
-      Logger::info("File not found in database: " + fileName);
-      auto fileContent = fetchDropboxFileContent(fileName, dropboxClient);
-      std::string relativePath = fileName.substr(user.size() + 1);
+      Logger::info("File not found in DB: " + filePath);
+      auto fileContent = DropboxUtils::downloadFileContent(filePath, dropboxClient);
+      std::string relativePath = filePath.substr(user.size() + 1);
       FileSystemUtil::createFile(relativePath, base_path, fileContent);
       fileMeta.file_content = fileContent;
       fileMeta.content_hash = event["content_hash"].get<std::string>();
@@ -323,53 +298,49 @@ namespace EventProcessor
       fileMeta.latest_rev = event["rev"].get<std::string>();
       fileMeta.rev = event["rev"].get<std::string>();
       fileMeta.storeToDatabase(db);
-      Database::addFileToParentDirectory(db, fileMeta.getFileName());
-      Logger::info("File content downloaded and metadata stored for: " + fileMeta.getFileName());
+      DatabaseUtils::registerFileInParentDirectory(db, fileMeta.getFileName());
+      Logger::info("Downloaded file content and stored metadata: " + fileMeta.getFileName());
     }
     else
     {
-      std::string relativePath = fileName.substr(user.size() + 1);
+      std::string relativePath = filePath.substr(user.size() + 1);
       auto localContent = FileSystemUtil::readFileContent(relativePath, base_path);
       auto localHash = dropbox::compute_content_hash(localContent);
       std::string serverHash = event["content_hash"].get<std::string>();
       if (localHash != serverHash)
       {
-        Logger::info("Hash mismatch detected for file: " + fileName);
-        auto serverContent = fetchDropboxFileContent(fileName, dropboxClient);
+        Logger::info("Hash mismatch for file: " + filePath);
+        auto serverContent = DropboxUtils::downloadFileContent(filePath, dropboxClient);
         auto baseContent = fileMeta.file_content;
-        std::string finalContent;
-        bool mergePossible = MergeLib::three_way_merge(baseContent, localContent, serverContent, finalContent);
-        if (mergePossible)
+        std::string mergedContent;
+        bool mergeSuccessful = MergeLib::three_way_merge(baseContent, localContent, serverContent, mergedContent);
+        if (mergeSuccessful)
         {
-          Logger::info("Merge successful for file: " + fileName);
-          fileMeta.file_content = finalContent;
-          FileSystemUtil::createFile(relativePath, base_path, finalContent);
-          auto response = dropboxClient->modifyFile(fileName, finalContent, event["rev"].get<std::string>());
+          Logger::info("Merge successful for file: " + filePath);
+          fileMeta.file_content = mergedContent;
+          FileSystemUtil::createFile(relativePath, base_path, mergedContent);
+          auto response = dropboxClient->modifyFile(filePath, mergedContent, event["rev"].get<std::string>());
           if (response.responseCode == 200)
           {
-            Logger::info("File content updated successfully on Dropbox: " + fileName);
+            Logger::info("File updated on Dropbox: " + filePath);
             auto responseJson = nlohmann::json::parse(response.content);
             fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
             fileMeta.fileSize = responseJson["size"].get<int>();
             fileMeta.rev = responseJson["rev"].get<std::string>();
             fileMeta.latest_rev = responseJson["rev"].get<std::string>();
             if (!fileMeta.storeToDatabase(db))
-            {
-              Logger::error("Failed to update file metadata in database: " + fileMeta.getFileName());
-            }
+              Logger::error("Failed to update file metadata in DB: " + fileMeta.getFileName());
             else
-            {
-              Logger::info("File metadata updated successfully: " + fileMeta.getFileName());
-            }
+              Logger::info("File metadata updated in DB: " + fileMeta.getFileName());
           }
           else
           {
-            Logger::error("Failed to update file content on Dropbox: " + response.content);
+            Logger::error("Failed to update file on Dropbox: " + response.content);
           }
         }
         else
         {
-          Logger::error("Merge conflict detected for file: " + fileName);
+          Logger::error("Merge conflict for file: " + filePath);
           std::string conflictFileName;
           size_t dotPos = relativePath.find_last_of('.');
           size_t slashPos = relativePath.find_last_of('/');
@@ -377,9 +348,11 @@ namespace EventProcessor
             conflictFileName = relativePath.substr(0, dotPos) + "$conflict$" + relativePath.substr(dotPos);
           else
             conflictFileName = relativePath + "$conflict$";
+          // Save conflict file locally using the local version.
           FileSystemUtil::createFile(conflictFileName, base_path, localContent);
-          Logger::error("Merge conflict saved as: " + conflictFileName);
-          FileSystemUtil::createFile(relativePath, base_path, finalContent);
+          Logger::error("Conflict file saved as: " + conflictFileName);
+          // Update local file with merged or server content (based on your conflict resolution strategy).
+          FileSystemUtil::createFile(relativePath, base_path, serverContent);
           std::string conflictFilePath = user + "/" + conflictFileName;
           fileMeta.file_content = serverContent;
           fileMeta.content_hash = event["content_hash"].get<std::string>();
@@ -387,9 +360,9 @@ namespace EventProcessor
           fileMeta.latest_rev = event["rev"].get<std::string>();
           fileMeta.rev = event["rev"].get<std::string>();
           if (!fileMeta.storeToDatabase(db))
-            Logger::error("Failed to update file metadata in database: " + fileMeta.getFileName());
+            Logger::error("Failed to update metadata in DB after conflict: " + fileMeta.getFileName());
           else
-            Logger::info("File metadata updated successfully after conflict: " + fileMeta.getFileName());
+            Logger::info("File metadata updated after conflict: " + fileMeta.getFileName());
 
           File_Metadata conflictMeta;
           conflictMeta.setFileName(conflictFilePath);
@@ -405,46 +378,46 @@ namespace EventProcessor
             conflictMeta.rev = conflictResponseJson["rev"].get<std::string>();
             conflictMeta.latest_rev = conflictResponseJson["rev"].get<std::string>();
             if (!conflictMeta.storeToDatabase(db))
-              Logger::error("Failed to store conflict file metadata in database: " + conflictFilePath);
+              Logger::error("Failed to store conflict file metadata in DB: " + conflictFilePath);
             else
-              Logger::info("Conflict file metadata stored successfully: " + conflictFilePath);
+              Logger::info("Conflict file metadata stored: " + conflictFilePath);
           }
           else
           {
             Logger::error("Failed to upload conflict file to Dropbox: " + conflictResponse.content);
           }
-          Database::addFileToParentDirectory(db, conflictFilePath);
+          DatabaseUtils::registerFileInParentDirectory(db, conflictFilePath);
         }
       }
       else
       {
-        Logger::info("No changes detected for file: " + fileName + ". Updating metadata.");
+        Logger::info("No changes for file: " + filePath + ". Updating metadata only.");
         fileMeta.content_hash = event["content_hash"].get<std::string>();
         fileMeta.fileSize = event["size"].get<int>();
         fileMeta.latest_rev = event["rev"].get<std::string>();
         fileMeta.rev = event["rev"].get<std::string>();
         if (!fileMeta.storeToDatabase(db))
-          Logger::error("Failed to update file metadata in database: " + fileMeta.getFileName());
+          Logger::error("Failed to update metadata in DB for: " + fileMeta.getFileName());
         else
-          Logger::info("File metadata updated successfully: " + fileMeta.getFileName());
+          Logger::info("File metadata updated: " + fileMeta.getFileName());
       }
     }
-    Logger::info("File update event processed: " + event.dump());
+    Logger::info("Completed file update event: " + event.dump());
   }
 
-  void processDeleteEvent(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db)
+  void handleDeleteEvent(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db)
   {
     std::string fullPath = event["full_path"].get<std::string>();
-    Logger::debug("Processing delete event for: " + fullPath);
+    Logger::debug("Handling delete event for: " + fullPath);
     File_Metadata fileMeta;
     fileMeta.setFileName(fullPath);
     if (fileMeta.loadFromDatabase(db))
     {
       std::string relativePath = fullPath.substr(user.size() + 1);
-      FileSystem::removeFileSystemEntry(relativePath, base_path);
-      Database::removeDBEntry(db, fullPath, "file");
-      Database::removeFileFromParentDirectory(db, fullPath);
-      Logger::info("Deleted file from database and local FS: " + fullPath);
+      FileSystemUtils::deleteLocalEntry(relativePath, base_path);
+      DatabaseUtils::deleteDBEntry(db, fullPath, "file");
+      DatabaseUtils::unregisterFileFromParentDirectory(db, fullPath);
+      Logger::info("Deleted file from DB and local FS: " + fullPath);
       return;
     }
     std::string dirKey = fullPath;
@@ -454,33 +427,33 @@ namespace EventProcessor
     dirMeta.setDirectoryName(dirKey);
     if (dirMeta.loadFromDatabase(db))
     {
-      Database::deleteDirectoryRecursively(db, dirKey);
+      DatabaseUtils::deleteDirectoryRecursively(db, dirKey);
       std::string relativePath = dirKey.substr(user.size() + 1);
-      FileSystem::removeFileSystemEntry(relativePath, base_path);
-      Database::removeDirectoryFromParent(db, dirKey);
-      Logger::info("Deleted directory from database and local FS: " + dirKey);
+      FileSystemUtils::deleteLocalEntry(relativePath, base_path);
+      DatabaseUtils::unregisterDirectoryFromParent(db, dirKey);
+      Logger::info("Deleted directory from DB and local FS: " + dirKey);
       return;
     }
-    Logger::warning("File or directory not found in database: " + fullPath);
+    Logger::warning("Neither file nor directory found in DB: " + fullPath);
   }
 
-  void processEvent(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db,
-                    std::shared_ptr<DropboxClient> dropboxClient)
+  void handleEvent(const nlohmann::json &event, std::shared_ptr<rocksdb::DB> db,
+                   std::shared_ptr<DropboxClient> dropboxClient)
   {
-    Logger::debug("Processing event: " + event.dump());
+    Logger::debug("Handling event: " + event.dump());
     std::string eventType = event["event_type"].get<std::string>();
     if (eventType == "update")
     {
       if (event["item_type"] == "folder")
-        processFolderUpdate(event, db);
+        handleFolderUpdate(event, db);
       else if (event["item_type"] == "file")
-        processFileUpdate(event, db, dropboxClient);
+        handleFileUpdate(event, db, dropboxClient);
       else
         Logger::error("Unknown update item_type: " + event.dump());
     }
     else if (eventType == "delete")
     {
-      processDeleteEvent(event, db);
+      handleDeleteEvent(event, db);
     }
     else
     {
@@ -488,18 +461,17 @@ namespace EventProcessor
     }
   }
 
-  void processEventQueue(std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
-                         std::shared_ptr<std::mutex> eventQueueMutex,
-                         std::shared_ptr<rocksdb::DB> db,
-                         std::shared_ptr<DropboxClient> dropboxClient,
-                         std::shared_ptr<std::mutex> databaseMutex)
+  void handleEventQueue(std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
+                        std::shared_ptr<std::mutex> eventQueueMutex,
+                        std::shared_ptr<rocksdb::DB> db,
+                        std::shared_ptr<DropboxClient> dropboxClient,
+                        std::shared_ptr<std::mutex> databaseMutex)
   {
     while (true)
     {
       std::unique_lock<std::mutex> lock(*eventQueueMutex);
       if (eventQueue->empty())
       {
-        // sleep for a short duration to avoid busy waiting
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         continue;
@@ -509,349 +481,314 @@ namespace EventProcessor
       lock.unlock();
       databaseMutex->lock();
       Logger::info("Processing event: " + event.dump());
-      processEvent(event, db, dropboxClient);
+      handleEvent(event, db, dropboxClient);
       databaseMutex->unlock();
     }
   }
 
 } // namespace EventProcessor
 
-//================== Initialization Functions ==================
-nlohmann::json loadConfiguration(const std::string &configPath)
+//================== Local File Event Processing ==================
+namespace LocalEventProcessor
 {
-  Logger::info("Loading configuration from: " + configPath);
-  nlohmann::json config;
-  std::ifstream configFile(configPath);
-  if (!configFile.is_open())
-    throw std::runtime_error("Failed to open config file: " + configPath);
-  try
+
+  void handleLocalFileDeletion(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                               const std::string &filePath)
   {
-    config = nlohmann::json::parse(configFile);
-    Logger::debug("Configuration loaded: " + config.dump());
-  }
-  catch (const nlohmann::json::parse_error &e)
-  {
-    throw std::runtime_error("JSON parsing error: " + std::string(e.what()));
-  }
-  if (!config.contains("access_token"))
-    throw std::runtime_error("access_token not found in config file");
-  if (!config.contains("metadata_database_path"))
-    throw std::runtime_error("metadata_database_path not found in config file");
-  // Set globals
-  user = config["user"].get<std::string>();
-  base_path = config["monitoring_directory"].get<std::string>();
-  sleep_time_ms = config["sleep_time"].get<unsigned int>();
-  event_threshold = config["event_threshold"].get<unsigned int>();
-  Logger::info("User set to: " + user + " and monitoring directory: " + base_path);
-  return config;
-}
-
-std::shared_ptr<rocksdb::DB> initializeDatabase(const nlohmann::json &config)
-{
-  std::string db_path = config["metadata_database_path"];
-  Logger::info("Initializing RocksDB at: " + db_path);
-  rocksdb::Options options;
-  options.create_if_missing = true;
-  rocksdb::DB *raw_db = nullptr;
-  auto status = rocksdb::DB::Open(options, db_path, &raw_db);
-  if (!status.ok())
-    throw std::runtime_error("Failed to open RocksDB at path: " + db_path +
-                             " Error: " + status.ToString());
-  Logger::info("RocksDB initialized successfully.");
-  return std::shared_ptr<rocksdb::DB>(raw_db, [](rocksdb::DB *ptr)
-                                      { delete ptr; });
-}
-
-std::shared_ptr<DropboxClient> initializeDropboxClient(const nlohmann::json &config)
-{
-  std::string access_token = config["access_token"];
-  Logger::info("Initializing DropboxClient with provided access token.");
-  return std::make_shared<DropboxClient>(access_token);
-}
-
-std::shared_ptr<std::queue<nlohmann::json>> createEventQueue()
-{
-  Logger::info("Creating event queue.");
-  return std::make_shared<std::queue<nlohmann::json>>();
-}
-
-std::shared_ptr<std::mutex> createEventQueueMutex()
-{
-  Logger::info("Creating event queue mutex.");
-  return std::make_shared<std::mutex>();
-}
-
-std::shared_ptr<std::mutex> createDatabaseMutex()
-{
-  Logger::info("Creating database mutex.");
-  return std::make_shared<std::mutex>();
-}
-
-std::shared_ptr<std::queue<FileEvent>> createInotifyEventQueue()
-{
-  Logger::info("Creating inotify event queue.");
-  return std::make_shared<std::queue<FileEvent>>();
-}
-
-std::shared_ptr<std::set<FileEvent>> createInotifyEventMap()
-{
-  Logger::info("Creating inotify event map.");
-  return std::make_shared<std::set<FileEvent>>();
-}
-
-std::shared_ptr<std::mutex> createInotifyEventMutex()
-{
-  Logger::info("Creating inotify event mutex.");
-  return std::make_shared<std::mutex>();
-}
-
-std::shared_ptr<std::condition_variable> createInotifyEventConditionVariable()
-{
-  Logger::info("Creating inotify event condition variable.");
-  return std::make_shared<std::condition_variable>();
-}
-
-std::thread startLongPollingThread(std::shared_ptr<DropboxClient> dropboxClient,
-                                   const nlohmann::json &config,
-                                   std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
-                                   std::shared_ptr<std::mutex> eventQueueMutex)
-{
-  Logger::info("Starting long polling thread.");
-  return std::thread([dropboxClient, config, eventQueue, eventQueueMutex]()
-                     { 
-                       // Log before starting long polling.
-                       Logger::info("Long polling thread started for user: " + config["user"].get<std::string>());
-                       dropboxClient->monitorEvents(config["user"].get<std::string>(), eventQueue, eventQueueMutex); });
-}
-
-void process_local_file_deletion(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
-                                 const std::string &filePath)
-{
-  Logger::info("Processing local deletion for: " + filePath);
-  Database::removeDBEntry(db, filePath, "file");
-  Database::removeFileFromParentDirectory(db, filePath);
-  auto response = dropboxClient->deleteFile(filePath);
-  if (response.responseCode == 200)
-    Logger::info("File deleted from Dropbox: " + filePath);
-  else
-    Logger::error("Failed to delete file from Dropbox: " + response.content);
-}
-
-void process_local_file_creation(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
-                                 const std::string &filePath, const std::string &fileFSPath)
-{
-  Logger::info("Processing local creation for: " + filePath);
-  File_Metadata fileMeta;
-  fileMeta.setFileName(filePath);
-  if (!fileMeta.loadFromDatabase(db))
-  {
-    fileMeta.file_content = FileSystemUtil::readFileContent(fileFSPath, base_path);
-    auto response = dropboxClient->createFile(filePath, fileMeta.file_content);
+    Logger::info("Handling local file deletion: " + filePath);
+    DatabaseUtils::deleteDBEntry(db, filePath, "file");
+    DatabaseUtils::unregisterFileFromParentDirectory(db, filePath);
+    auto response = dropboxClient->deleteFile(filePath);
     if (response.responseCode == 200)
+      Logger::info("File deleted from Dropbox: " + filePath);
+    else
+      Logger::error("Failed to delete file from Dropbox: " + response.content);
+  }
+
+  void handleLocalFileCreation(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                               const std::string &filePath, const std::string &fileFSPath)
+  {
+    Logger::info("Handling local file creation: " + filePath);
+    File_Metadata fileMeta;
+    fileMeta.setFileName(filePath);
+    if (!fileMeta.loadFromDatabase(db))
     {
-      Logger::info("File created on Dropbox: " + filePath);
-      auto responseJson = nlohmann::json::parse(response.content);
-      fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
-      fileMeta.fileSize = responseJson["size"].get<int>();
-      fileMeta.rev = responseJson["rev"].get<std::string>();
-      fileMeta.latest_rev = responseJson["rev"].get<std::string>();
-      if (!fileMeta.storeToDatabase(db))
-        Logger::error("Failed to store file metadata in database: " + filePath);
+      fileMeta.file_content = FileSystemUtil::readFileContent(fileFSPath, base_path);
+      auto response = dropboxClient->createFile(filePath, fileMeta.file_content);
+      if (response.responseCode == 200)
+      {
+        Logger::info("File created on Dropbox: " + filePath);
+        auto responseJson = nlohmann::json::parse(response.content);
+        fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
+        fileMeta.fileSize = responseJson["size"].get<int>();
+        fileMeta.rev = responseJson["rev"].get<std::string>();
+        fileMeta.latest_rev = responseJson["rev"].get<std::string>();
+        if (!fileMeta.storeToDatabase(db))
+          Logger::error("Failed to store file metadata in DB: " + filePath);
+        else
+          Logger::info("File metadata stored: " + filePath);
+        if (!DatabaseUtils::registerFileInParentDirectory(db, filePath))
+          Logger::error("Failed to register file in parent directory: " + filePath);
+        else
+          Logger::info("File registered in parent directory: " + filePath);
+      }
       else
-        Logger::info("File metadata stored successfully: " + filePath);
-      // Add file to parent directory
-      if (!Database::addFileToParentDirectory(db, filePath))
-        Logger::error("Failed to add file to parent directory in database: " + filePath);
-      else
-        Logger::info("File added to parent directory in database: " + filePath);
+      {
+        Logger::error("Failed to create file on Dropbox: " + response.content);
+      }
     }
     else
     {
-      Logger::error("Failed to create file on Dropbox: " + response.content);
+      Logger::info("File already exists in DB: " + filePath);
     }
   }
-  else
-  {
-    Logger::info("File already exists in database: " + filePath);
-  }
-}
 
-void process_local_file_modification(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
-                                     const std::string &filePath, const std::string &fileFSPath)
-{
-  Logger::info("Processing local modification for: " + filePath);
-  File_Metadata fileMeta;
-  fileMeta.setFileName(filePath);
-  if (fileMeta.loadFromDatabase(db))
+  void handleLocalFileModification(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                   const std::string &filePath, const std::string &fileFSPath)
   {
-    auto localContent = FileSystemUtil::readFileContent(fileFSPath, base_path);
-    auto response = dropboxClient->modifyFile(filePath, localContent, fileMeta.latest_rev);
-    if (response.responseCode == 200)
+    Logger::info("Handling local file modification: " + filePath);
+    File_Metadata fileMeta;
+    fileMeta.setFileName(filePath);
+    if (fileMeta.loadFromDatabase(db))
     {
-      Logger::info("File modified on Dropbox: " + filePath);
-      auto responseJson = nlohmann::json::parse(response.content);
-      fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
-      fileMeta.fileSize = responseJson["size"].get<int>();
-      fileMeta.rev = responseJson["rev"].get<std::string>();
-      fileMeta.latest_rev = responseJson["rev"].get<std::string>();
-      if (!fileMeta.storeToDatabase(db))
-        Logger::error("Failed to update file metadata in database: " + filePath);
+      auto localContent = FileSystemUtil::readFileContent(fileFSPath, base_path);
+      auto response = dropboxClient->modifyFile(filePath, localContent, fileMeta.latest_rev);
+      if (response.responseCode == 200)
+      {
+        Logger::info("File modified on Dropbox: " + filePath);
+        auto responseJson = nlohmann::json::parse(response.content);
+        fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
+        fileMeta.fileSize = responseJson["size"].get<int>();
+        fileMeta.rev = responseJson["rev"].get<std::string>();
+        fileMeta.latest_rev = responseJson["rev"].get<std::string>();
+        if (!fileMeta.storeToDatabase(db))
+          Logger::error("Failed to update metadata in DB: " + filePath);
+        else
+          Logger::info("File metadata updated: " + filePath);
+      }
       else
-        Logger::info("File metadata updated successfully: " + filePath);
+      {
+        Logger::error("Failed to modify file on Dropbox: " + response.content);
+      }
     }
     else
     {
-      Logger::error("Failed to modify file on Dropbox: " + response.content);
+      Logger::info("File not found in DB: " + filePath);
     }
   }
-  else
-  {
-    Logger::info("File not found in database: " + filePath);
-  }
-}
 
-void process_local_dir_deletion(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
-                                const std::string &dirPath)
-{
-  Logger::info("Processing local directory deletion for: " + dirPath);
-  Database::deleteDirectoryRecursively(db, dirPath);
-  Database::removeDirectoryFromParent(db, dirPath);
-  auto response = dropboxClient->deleteFolder(dirPath);
-  if (response.responseCode == 200)
-    Logger::info("Directory deleted from Dropbox: " + dirPath);
-  else
-    Logger::error("Failed to delete directory from Dropbox: " + response.content);
-}
-
-void process_local_dir_creation(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
-                                const std::string &dirPath)
-{
-  Logger::info("Processing local directory creation for: " + dirPath);
-  Directory_Metadata dirMeta;
-  dirMeta.setDirectoryName(dirPath);
-  if (!dirMeta.loadFromDatabase(db))
+  void handleLocalDirectoryDeletion(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                    const std::string &dirPath)
   {
-    dirMeta.storeToDatabase(db);
-    auto response = dropboxClient->createFolder(dirPath);
+    Logger::info("Handling local directory deletion: " + dirPath);
+    DatabaseUtils::deleteDirectoryRecursively(db, dirPath);
+    DatabaseUtils::unregisterDirectoryFromParent(db, dirPath);
+    auto response = dropboxClient->deleteFolder(dirPath);
     if (response.responseCode == 200)
+      Logger::info("Directory deleted from Dropbox: " + dirPath);
+    else
+      Logger::error("Failed to delete directory from Dropbox: " + response.content);
+  }
+
+  void handleLocalDirectoryCreation(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                    const std::string &dirPath)
+  {
+    Logger::info("Handling local directory creation: " + dirPath);
+    Directory_Metadata dirMeta;
+    dirMeta.setDirectoryName(dirPath);
+    if (!dirMeta.loadFromDatabase(db))
     {
-      Logger::info("Directory created on Dropbox: " + dirPath);
-      if (!Database::addDirectoryToParent(db, dirPath))
-        Logger::error("Failed to add directory to parent in database: " + dirPath);
+      dirMeta.storeToDatabase(db);
+      auto response = dropboxClient->createFolder(dirPath);
+      if (response.responseCode == 200)
+      {
+        Logger::info("Directory created on Dropbox: " + dirPath);
+        if (!DatabaseUtils::registerDirectoryInParent(db, dirPath))
+          Logger::error("Failed to register directory in parent: " + dirPath);
+        else
+          Logger::info("Directory registered in parent: " + dirPath);
+      }
       else
-        Logger::info("Directory added to parent in database: " + dirPath);
+      {
+        Logger::error("Failed to create directory on Dropbox: " + response.content);
+      }
     }
     else
     {
-      Logger::error("Failed to create directory on Dropbox: " + response.content);
+      Logger::info("Directory already exists in DB: " + dirPath);
     }
   }
-  else
-  {
-    Logger::info("Directory already exists in database: " + dirPath);
-  }
-}
 
-void process_watched_events(std::shared_ptr<std::queue<FileEvent>> inotifyEventQueue, std::shared_ptr<std::set<FileEvent>> inotifyEventMap,
+  void processInotifyEvents(std::shared_ptr<std::queue<FileEvent>> inotifyEventQueue,
+                            std::shared_ptr<std::set<FileEvent>> inotifyEventMap,
                             std::shared_ptr<std::mutex> inotifyEventMutex,
-                            std::shared_ptr<std::condition_variable> inotifyEventConditionVariable, std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient)
-{
-  while (true)
+                            std::shared_ptr<std::condition_variable> inotifyEventConditionVariable,
+                            std::shared_ptr<rocksdb::DB> db,
+                            std::shared_ptr<DropboxClient> dropboxClient)
   {
-    std::unique_lock<std::mutex> lock(*inotifyEventMutex);
-    auto wakeTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(sleep_time_ms);
-    inotifyEventConditionVariable->wait_until(lock, wakeTime, [&inotifyEventQueue]()
-                                              { return inotifyEventQueue->size() >= event_threshold; });
-    while (!inotifyEventQueue->empty())
+    while (true)
     {
-      auto event = inotifyEventQueue->front();
-      inotifyEventQueue->pop();
-      inotifyEventMap->erase(event);
-      Logger::info("Processing inotify event: " + std::to_string(static_cast<int>(event.eventType)) + " for path: " + event.path + " of type: " + (event.fileType == FileType::File ? "File" : "Directory"));
+      std::unique_lock<std::mutex> lock(*inotifyEventMutex);
+      auto wakeTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(sleep_time_ms);
+      inotifyEventConditionVariable->wait_until(lock, wakeTime, [&inotifyEventQueue]()
+                                                { return inotifyEventQueue->size() >= event_threshold; });
+      while (!inotifyEventQueue->empty())
+      {
+        auto event = inotifyEventQueue->front();
+        inotifyEventQueue->pop();
+        inotifyEventMap->erase(event);
+        Logger::info("Processing inotify event: " + std::to_string(static_cast<int>(event.eventType)) +
+                     " for path: " + event.path +
+                     " of type: " + (event.fileType == FileType::File ? "File" : "Directory"));
 
-      auto eventType = event.eventType;
-      auto filePath = event.path;
-      auto fileType = event.fileType;
-      auto relativePath = filePath.substr(base_path.size() + 1);
-      auto fileName = user + "/" + relativePath;
-      if (fileType == FileType::File)
-      {
-        if (eventType == InotifyEventType::Created || eventType == InotifyEventType::MovedTo)
+        auto eventType = event.eventType;
+        auto filePath = event.path;
+        auto fileType = event.fileType;
+        auto relativePath = filePath.substr(base_path.size() + 1);
+        auto dropboxFilePath = user + "/" + relativePath;
+        if (fileType == FileType::File)
         {
-          process_local_file_creation(db, dropboxClient, fileName, filePath);
+          if (eventType == InotifyEventType::Created || eventType == InotifyEventType::MovedTo)
+          {
+            handleLocalFileCreation(db, dropboxClient, dropboxFilePath, filePath);
+          }
+          else if (eventType == InotifyEventType::Modified)
+          {
+            handleLocalFileModification(db, dropboxClient, dropboxFilePath, filePath);
+          }
+          else if (eventType == InotifyEventType::Deleted || eventType == InotifyEventType::MovedFrom)
+          {
+            handleLocalFileDeletion(db, dropboxClient, dropboxFilePath);
+          }
         }
-        else if (eventType == InotifyEventType::Modified)
+        else if (fileType == FileType::Directory)
         {
-          process_local_file_modification(db, dropboxClient, fileName, filePath);
+          if (eventType == InotifyEventType::Created || eventType == InotifyEventType::MovedTo)
+          {
+            handleLocalDirectoryCreation(db, dropboxClient, dropboxFilePath);
+          }
+          else if (eventType == InotifyEventType::Deleted || eventType == InotifyEventType::MovedFrom)
+          {
+            handleLocalDirectoryDeletion(db, dropboxClient, dropboxFilePath);
+          }
         }
-        else if (eventType == InotifyEventType::Deleted || eventType == InotifyEventType::MovedFrom)
+        else
         {
-          process_local_file_deletion(db, dropboxClient, fileName);
+          Logger::error("Unknown file type encountered: " + std::to_string(static_cast<int>(fileType)));
         }
-      }
-      else if (fileType == FileType::Directory)
-      {
-        if (eventType == InotifyEventType::Created || eventType == InotifyEventType::MovedTo)
-        {
-          process_local_dir_creation(db, dropboxClient, fileName);
-        }
-        else if (eventType == InotifyEventType::Deleted || eventType == InotifyEventType::MovedFrom)
-        {
-          process_local_dir_deletion(db, dropboxClient, fileName);
-        }
-      }
-      else
-      {
-        Logger::error("Unknown file type: " + std::to_string(static_cast<int>(fileType)));
       }
     }
   }
-}
+
+} // namespace LocalEventProcessor
+
+//================== Initialization Functions ==================
+namespace AppInitialization
+{
+
+  nlohmann::json loadConfigurationFromFile(const std::string &configPath)
+  {
+    Logger::info("Loading configuration from: " + configPath);
+    nlohmann::json config;
+    std::ifstream configFile(configPath);
+    if (!configFile.is_open())
+      throw std::runtime_error("Failed to open config file: " + configPath);
+    try
+    {
+      config = nlohmann::json::parse(configFile);
+      Logger::debug("Configuration loaded: " + config.dump());
+    }
+    catch (const nlohmann::json::parse_error &e)
+    {
+      throw std::runtime_error("JSON parsing error: " + std::string(e.what()));
+    }
+    if (!config.contains("access_token"))
+      throw std::runtime_error("access_token not found in config file");
+    if (!config.contains("metadata_database_path"))
+      throw std::runtime_error("metadata_database_path not found in config file");
+    // Set globals
+    user = config["user"].get<std::string>();
+    base_path = config["monitoring_directory"].get<std::string>();
+    sleep_time_ms = config["sleep_time"].get<unsigned int>();
+    event_threshold = config["event_threshold"].get<unsigned int>();
+    Logger::info("User: " + user + ", Monitoring directory: " + base_path);
+    return config;
+  }
+
+  std::shared_ptr<rocksdb::DB> initializeDatabase(const nlohmann::json &config)
+  {
+    std::string db_path = config["metadata_database_path"];
+    Logger::info("Initializing RocksDB at: " + db_path);
+    rocksdb::Options options;
+    options.create_if_missing = true;
+    rocksdb::DB *raw_db = nullptr;
+    auto status = rocksdb::DB::Open(options, db_path, &raw_db);
+    if (!status.ok())
+      throw std::runtime_error("Failed to open RocksDB at: " + db_path + " Error: " + status.ToString());
+    Logger::info("RocksDB initialized successfully.");
+    return std::shared_ptr<rocksdb::DB>(raw_db, [](rocksdb::DB *ptr)
+                                        { delete ptr; });
+  }
+
+  std::shared_ptr<DropboxClient> initializeDropboxClient(const nlohmann::json &config)
+  {
+    std::string access_token = config["access_token"];
+    Logger::info("Initializing DropboxClient.");
+    return std::make_shared<DropboxClient>(access_token);
+  }
+
+  std::thread createLongPollingThread(std::shared_ptr<DropboxClient> dropboxClient,
+                                      const nlohmann::json &config,
+                                      std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
+                                      std::shared_ptr<std::mutex> eventQueueMutex)
+  {
+    Logger::info("Starting long polling thread.");
+    return std::thread([dropboxClient, config, eventQueue, eventQueueMutex]()
+                       {
+    Logger::info("Long polling thread started for user: " + config["user"].get<std::string>());
+    dropboxClient->monitorEvents(config["user"].get<std::string>(), eventQueue, eventQueueMutex); });
+  }
+
+} // namespace AppInitialization
 
 //================== Main Function ==================
 int main()
 {
   Logger::info("Application starting...");
-  // Load configuration
-  nlohmann::json config = loadConfiguration(config_path);
 
-  // Initialize RocksDB
-  auto db = initializeDatabase(config);
-
-  // Bootup initialization (assumed to be defined elsewhere)
+  // Load configuration and initialize services.
+  nlohmann::json config = AppInitialization::loadConfigurationFromFile(config_path);
+  auto db = AppInitialization::initializeDatabase(config);
   Logger::info("Running bootup_1...");
   bootup_1(config, db);
   Logger::info("Running bootup_2...");
-  auto dropboxClient = initializeDropboxClient(config);
-  auto dropboxClientCommunicator = initializeDropboxClient(config);
+  auto dropboxClient = AppInitialization::initializeDropboxClient(config);
+  auto dropboxClientForComm = AppInitialization::initializeDropboxClient(config);
   bootup_2(db, dropboxClient, config);
   Logger::info("Running bootup_3...");
   bootup_3(db, dropboxClient, config);
 
-  // Setup event queue and mutex.
-  auto eventQueue = createEventQueue();
-  auto eventQueueMutex = createEventQueueMutex();
-  auto dbMutex = createDatabaseMutex();
-  auto inotifyEventQueue = createInotifyEventQueue();
-  auto inotifyEventMutex = createInotifyEventMutex();
-  auto inotifyEventConditionVariable = createInotifyEventConditionVariable();
-  auto inotifyEventMap = createInotifyEventMap();
+  // Setup event queues and mutexes.
+  auto eventQueue = std::make_shared<std::queue<nlohmann::json>>();
+  auto eventQueueMutex = std::make_shared<std::mutex>();
+  auto dbMutex = std::make_shared<std::mutex>();
+  auto inotifyEventQueue = std::make_shared<std::queue<FileEvent>>();
+  auto inotifyEventMutex = std::make_shared<std::mutex>();
+  auto inotifyEventCondVar = std::make_shared<std::condition_variable>();
+  auto inotifyEventMap = std::make_shared<std::set<FileEvent>>();
 
-  // Start Dropbox long polling in a separate thread.
-  std::thread longPollingThread = startLongPollingThread(dropboxClient, config, eventQueue, eventQueueMutex);
+  // Start threads.
+  std::thread longPollingThread = AppInitialization::createLongPollingThread(dropboxClient, config, eventQueue, eventQueueMutex);
+  std::thread eventServerProcessorThread(EventProcessor::handleEventQueue, eventQueue, eventQueueMutex, db, dropboxClientForComm, dbMutex);
+  std::thread watcherThread(watch_directory, base_path, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventCondVar);
+  std::thread localEventProcessorThread(LocalEventProcessor::processInotifyEvents, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventCondVar, db, dropboxClientForComm);
 
-  std::thread eventServerProcessorThread(EventProcessor::processEventQueue, eventQueue, eventQueueMutex, db, dropboxClientCommunicator, dbMutex);
-
-  std::thread watcherThread(watch_directory, base_path, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable);
-
-  std::thread eventLocalProcessorThread(process_watched_events, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable, db, dropboxClientCommunicator);
-
-  // Wait for threads to finish (they won't in this case, but it's good practice).
+  // Join threads (they run indefinitely in this example).
   eventServerProcessorThread.join();
   longPollingThread.join();
   watcherThread.join();
-  eventLocalProcessorThread.join();
-  // Cleanup and exit
+  localEventProcessorThread.join();
+
   Logger::info("Application exiting.");
   return 0;
 }
