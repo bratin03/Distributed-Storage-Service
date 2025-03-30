@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 #include <rocksdb/db.h>
 #include <string>
+#include <queue>
 
 // Struct to hold a Dropbox response.
 struct DropboxResponse
@@ -52,6 +53,9 @@ public:
   DropboxResponse longpollFolder(const std::string &cursor, int timeout = 30);
   // Add this declaration in the public section of DropboxClient:
   DropboxResponse continueListing(const std::string &cursor);
+  void monitorEvents(const std::string &filename,
+    std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
+    std::shared_ptr<std::mutex> mtx);
 
 private:
   std::string accessToken;
