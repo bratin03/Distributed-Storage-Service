@@ -404,9 +404,6 @@ DropboxResponse DropboxClient::continueListing(const std::string &cursor)
   return response;
 }
 
-#include "dropbox_client.h"
-#include <mutex>
-
 // Member function of DropboxClient to monitor events.
 // It now accepts a shared pointer to a mutex and locks it before pushing events onto the queue.
 void DropboxClient::monitorEvents(const std::string &filename,
