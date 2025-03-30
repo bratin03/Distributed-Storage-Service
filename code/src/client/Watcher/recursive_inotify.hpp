@@ -12,8 +12,11 @@
 #include <sys/inotify.h>
 #include <thread>
 #include <unistd.h>
+#include <set>
+#include <map>
 #include <unordered_map>
 #include <utility>
+#include <condition_variable>
 
 namespace fs = std::filesystem;
 
@@ -35,7 +38,9 @@ inline void watch_directory(
     const std::string &root_dir,
     std::shared_ptr<std::queue<std::pair<InotifyEventType, std::string>>>
         eventQueue,
-    std::shared_ptr<std::mutex> mtx)
+    std::shared_ptr<std::set<std::pair<InotifyEventType, std::string>>>
+        eventMap,
+    std::shared_ptr<std::mutex> mtx, std::shared_ptr<std::condition_variable> cv)
 {
   // Initialize inotify (non-blocking mode).
   int inotify_fd = inotify_init1(IN_NONBLOCK);
@@ -155,7 +160,12 @@ inline void watch_directory(
       // Push the event into the shared queue in a thread-safe manner.
       {
         std::lock_guard<std::mutex> lock(*mtx);
-        eventQueue->push(std::make_pair(eventType, full_path.string()));
+        if (eventMap->find(std::make_pair(eventType, full_path.string())) == eventMap->end())
+        {
+          eventMap->insert(std::make_pair(eventType, full_path.string()));
+          eventQueue->push(std::make_pair(eventType, full_path.string()));
+          cv->notify_one(); // Notify one waiting thread.
+        }
       }
 
       // Move to the next event in the buffer.

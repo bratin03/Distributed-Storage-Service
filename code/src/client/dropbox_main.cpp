@@ -9,11 +9,14 @@
 #include <algorithm>
 #include <stdexcept>
 #include <rocksdb/db.h>
+#include "Watcher/recursive_inotify.hpp"
 
 // Global variables (do not remove)
 const std::string config_path = "config.json";
 std::string user;
 std::string base_path;
+unsigned int sleep_time_ms;
+unsigned int event_threshold;
 
 namespace fs = std::filesystem;
 
@@ -488,20 +491,26 @@ namespace EventProcessor
   void processEventQueue(std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
                          std::shared_ptr<std::mutex> eventQueueMutex,
                          std::shared_ptr<rocksdb::DB> db,
-                         std::shared_ptr<DropboxClient> dropboxClient)
+                         std::shared_ptr<DropboxClient> dropboxClient,
+                         std::shared_ptr<std::mutex> databaseMutex)
   {
     while (true)
     {
       std::unique_lock<std::mutex> lock(*eventQueueMutex);
       if (eventQueue->empty())
       {
-        break;
+        // sleep for a short duration to avoid busy waiting
+        lock.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        continue;
       }
       nlohmann::json event = eventQueue->front();
       eventQueue->pop();
       lock.unlock();
+      databaseMutex->lock();
       Logger::info("Processing event: " + event.dump());
       processEvent(event, db, dropboxClient);
+      databaseMutex->unlock();
     }
   }
 
@@ -531,6 +540,8 @@ nlohmann::json loadConfiguration(const std::string &configPath)
   // Set globals
   user = config["user"].get<std::string>();
   base_path = config["monitoring_directory"].get<std::string>();
+  sleep_time_ms = config["sleep_time"].get<unsigned int>();
+  event_threshold = config["event_threshold"].get<unsigned int>();
   Logger::info("User set to: " + user + " and monitoring directory: " + base_path);
   return config;
 }
@@ -570,6 +581,35 @@ std::shared_ptr<std::mutex> createEventQueueMutex()
   return std::make_shared<std::mutex>();
 }
 
+std::shared_ptr<std::mutex> createDatabaseMutex()
+{
+  Logger::info("Creating database mutex.");
+  return std::make_shared<std::mutex>();
+}
+
+std::shared_ptr<std::queue<std::pair<InotifyEventType, std::string>>> createInotifyEventQueue()
+{
+  Logger::info("Creating inotify event queue.");
+  return std::make_shared<std::queue<std::pair<InotifyEventType, std::string>>>();
+}
+
+std::shared_ptr<std::set<std::pair<InotifyEventType, std::string>>> createInotifyEventMap()
+{
+  Logger::info("Creating inotify event map.");
+  return std::make_shared<std::set<std::pair<InotifyEventType, std::string>>>();
+}
+std::shared_ptr<std::mutex> createInotifyEventMutex()
+{
+  Logger::info("Creating inotify event mutex.");
+  return std::make_shared<std::mutex>();
+}
+
+std::shared_ptr<std::condition_variable> createInotifyEventConditionVariable()
+{
+  Logger::info("Creating inotify event condition variable.");
+  return std::make_shared<std::condition_variable>();
+}
+
 std::thread startLongPollingThread(std::shared_ptr<DropboxClient> dropboxClient,
                                    const nlohmann::json &config,
                                    std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
@@ -581,6 +621,26 @@ std::thread startLongPollingThread(std::shared_ptr<DropboxClient> dropboxClient,
                        // Log before starting long polling.
                        Logger::info("Long polling thread started for user: " + config["user"].get<std::string>());
                        dropboxClient->monitorEvents(config["user"].get<std::string>(), eventQueue, eventQueueMutex); });
+}
+
+void process_watched_events(std::shared_ptr<std::queue<std::pair<InotifyEventType, std::string>>> inotifyEventQueue, std::shared_ptr<std::set<std::pair<InotifyEventType, std::string>>> inotifyEventMap,
+                            std::shared_ptr<std::mutex> inotifyEventMutex,
+                            std::shared_ptr<std::condition_variable> inotifyEventConditionVariable)
+{
+  while (true)
+  {
+    std::unique_lock<std::mutex> lock(*inotifyEventMutex);
+    auto wakeTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(sleep_time_ms);
+    inotifyEventConditionVariable->wait_until(lock, wakeTime, [&inotifyEventQueue]()
+                                              { return inotifyEventQueue->size() >= event_threshold; });
+    while (!inotifyEventQueue->empty())
+    {
+      auto event = inotifyEventQueue->front();
+      inotifyEventQueue->pop();
+      inotifyEventMap->erase(event);
+      Logger::info("Processing inotify event: " + std::to_string(static_cast<int>(event.first)) + " for path: " + event.second);
+    }
+  }
 }
 
 //================== Main Function ==================
@@ -605,19 +665,27 @@ int main()
   // Setup event queue and mutex.
   auto eventQueue = createEventQueue();
   auto eventQueueMutex = createEventQueueMutex();
+  auto dbMutex = createDatabaseMutex();
+  auto inotifyEventQueue = createInotifyEventQueue();
+  auto inotifyEventMutex = createInotifyEventMutex();
+  auto inotifyEventConditionVariable = createInotifyEventConditionVariable();
+  auto inotifyEventMap = createInotifyEventMap();
 
   // Start Dropbox long polling in a separate thread.
   std::thread longPollingThread = startLongPollingThread(dropboxClient, config, eventQueue, eventQueueMutex);
 
-  // Main loop: process events as they arrive.
-  Logger::info("Entering main event processing loop.");
-  while (true)
-  {
-    EventProcessor::processEventQueue(eventQueue, eventQueueMutex, db, dropboxClient);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Avoid busy waiting.
-  }
+  std::thread eventServerProcessorThread(EventProcessor::processEventQueue, eventQueue, eventQueueMutex, db, dropboxClient, dbMutex);
 
+  std::thread watcherThread(watch_directory, base_path, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable);
+
+  std::thread eventLocalProcessorThread(process_watched_events, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable);
+
+  // Wait for threads to finish (they won't in this case, but it's good practice).
+  eventServerProcessorThread.join();
   longPollingThread.join();
+  watcherThread.join();
+  eventLocalProcessorThread.join();
+  // Cleanup and exit
   Logger::info("Application exiting.");
   return 0;
 }
