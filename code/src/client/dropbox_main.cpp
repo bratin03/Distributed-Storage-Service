@@ -659,6 +659,11 @@ void process_local_file_creation(std::shared_ptr<rocksdb::DB> db, std::shared_pt
         Logger::error("Failed to store file metadata in database: " + filePath);
       else
         Logger::info("File metadata stored successfully: " + filePath);
+      // Add file to parent directory
+      if (!Database::addFileToParentDirectory(db, filePath))
+        Logger::error("Failed to add file to parent directory in database: " + filePath);
+      else
+        Logger::info("File added to parent directory in database: " + filePath);
     }
     else
     {
@@ -705,6 +710,48 @@ void process_local_file_modification(std::shared_ptr<rocksdb::DB> db, std::share
   }
 }
 
+void process_local_dir_deletion(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                const std::string &dirPath)
+{
+  Logger::info("Processing local directory deletion for: " + dirPath);
+  Database::deleteDirectoryRecursively(db, dirPath);
+  Database::removeDirectoryFromParent(db, dirPath);
+  auto response = dropboxClient->deleteFolder(dirPath);
+  if (response.responseCode == 200)
+    Logger::info("Directory deleted from Dropbox: " + dirPath);
+  else
+    Logger::error("Failed to delete directory from Dropbox: " + response.content);
+}
+
+void process_local_dir_creation(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                const std::string &dirPath)
+{
+  Logger::info("Processing local directory creation for: " + dirPath);
+  Directory_Metadata dirMeta;
+  dirMeta.setDirectoryName(dirPath);
+  if (!dirMeta.loadFromDatabase(db))
+  {
+    dirMeta.storeToDatabase(db);
+    auto response = dropboxClient->createFolder(dirPath);
+    if (response.responseCode == 200)
+    {
+      Logger::info("Directory created on Dropbox: " + dirPath);
+      if (!Database::addDirectoryToParent(db, dirPath))
+        Logger::error("Failed to add directory to parent in database: " + dirPath);
+      else
+        Logger::info("Directory added to parent in database: " + dirPath);
+    }
+    else
+    {
+      Logger::error("Failed to create directory on Dropbox: " + response.content);
+    }
+  }
+  else
+  {
+    Logger::info("Directory already exists in database: " + dirPath);
+  }
+}
+
 void process_watched_events(std::shared_ptr<std::queue<FileEvent>> inotifyEventQueue, std::shared_ptr<std::set<FileEvent>> inotifyEventMap,
                             std::shared_ptr<std::mutex> inotifyEventMutex,
                             std::shared_ptr<std::condition_variable> inotifyEventConditionVariable, std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient)
@@ -744,6 +791,18 @@ void process_watched_events(std::shared_ptr<std::queue<FileEvent>> inotifyEventQ
       }
       else if (fileType == FileType::Directory)
       {
+        if (eventType == InotifyEventType::Created || eventType == InotifyEventType::MovedTo)
+        {
+          process_local_dir_creation(db, dropboxClient, fileName);
+        }
+        else if (eventType == InotifyEventType::Deleted || eventType == InotifyEventType::MovedFrom)
+        {
+          process_local_dir_deletion(db, dropboxClient, fileName);
+        }
+      }
+      else
+      {
+        Logger::error("Unknown file type: " + std::to_string(static_cast<int>(fileType)));
       }
     }
   }
