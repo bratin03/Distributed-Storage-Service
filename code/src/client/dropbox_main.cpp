@@ -68,6 +68,33 @@ bool remove_file_from_parent_directory(std::shared_ptr<rocksdb::DB> db,
   return true;
 }
 
+// Deletes a directory and all its children from the database.
+void deleteDirectoryInDB(std::shared_ptr<rocksdb::DB> db,
+                         const std::string &dirKey)
+{
+  Logger::debug("Deleting directory in DB: " + dirKey);
+  Directory_Metadata metadata;
+  metadata.setDirectoryName(dirKey);
+  if (!metadata.loadFromDatabase(db))
+  {
+    Logger::error("Directory not found in database: " + dirKey);
+    return;
+  }
+
+  // Delete the directory entry.
+  deleteKey(db, dirKey, "directory");
+  // Delete all file entries.
+  for (const auto &fileKey : metadata.files)
+  {
+    deleteKey(db, fileKey, "file");
+  }
+  // Recursively delete any subdirectories.
+  for (const auto &subDirKey : metadata.directories)
+  {
+    deleteDirectoryInDB(db, subDirKey);
+  }
+}
+
 void delete_file_fs(const std::string &name, const fs::path &base_path)
 {
   // Construct the full path from the base path and the file/directory name.
@@ -144,6 +171,10 @@ void processServerEvents(
         directoryMetadata.setDirectoryName(name);
         if (directoryMetadata.loadFromDatabase(db))
         {
+          deleteDirectoryInDB(db, name);
+          auto filepath = name.substr(user.size() + 1);
+          delete_file_fs(filepath, base_path);
+          Logger::info("Deleted directory from database: " + name);
           continue;
         }
         Logger::warning("File or directory not found in database: " + name);
