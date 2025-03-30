@@ -8,6 +8,9 @@
 #include <nlohmann/json.hpp>
 #include <rocksdb/db.h>
 #include <string>
+#include "../hash/dropbox_content_hash.hpp"
+#include "../merge/three_way_merge.hpp"
+
 #include <queue>
 
 // Struct to hold a Dropbox response.
@@ -54,8 +57,8 @@ public:
   // Add this declaration in the public section of DropboxClient:
   DropboxResponse continueListing(const std::string &cursor);
   void monitorEvents(const std::string &filename,
-    std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
-    std::shared_ptr<std::mutex> mtx);
+                     std::shared_ptr<std::queue<nlohmann::json>> eventQueue,
+                     std::shared_ptr<std::mutex> mtx);
 
 private:
   std::string accessToken;
@@ -101,7 +104,7 @@ namespace FileSystemUtil
   inline void createFile(const std::string &relativePath, const std::string &basePath, const std::string &content)
   {
     auto filePath = buildPath(basePath, relativePath);
-    std::ofstream file(filePath);
+    std::ofstream file(filePath, std::ios::binary);
     if (file.is_open())
     {
       file << content;

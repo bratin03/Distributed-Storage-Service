@@ -4,8 +4,6 @@
 #include <rocksdb/db.h>
 #include <string>
 #include <vector>
-#include "../hash/dropbox_content_hash.hpp"
-#include "../merge/three_way_merge.hpp"
 
 namespace DropboxAPI
 {
@@ -220,7 +218,7 @@ private:
       fileMetadata.file_content = mergedContent;
       Logger::debug("Updating local file with merged content for: " + fileMetadata.getFileName());
       FileSystemUtil::createFile(relativePath, monitoringDirectory_, mergedContent);
-      auto response = dropboxClient_->modifyFile(fileMetadata.getFileName(), mergedContent, fileMetadata.rev);
+      auto response = dropboxClient_->modifyFile(fileMetadata.getFileName(), mergedContent, entry["rev"]);
       if (response.responseCode == 200)
       {
         Logger::info("File modified on Dropbox: " + fileMetadata.getFileName());
@@ -289,7 +287,7 @@ private:
     {
       Logger::error("Failed to store updated metadata for file after conflict resolution: " + fileMetadata.getFileName());
     }
-    updateDirectoryMetadata(fileMetadata.getFileName());
+    updateDirectoryMetadata(fileMetadata.fileName);
 
     File_Metadata conflictMetadata;
     conflictMetadata.setFileName(conflictFilePath);
