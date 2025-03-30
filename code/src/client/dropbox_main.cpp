@@ -587,17 +587,18 @@ std::shared_ptr<std::mutex> createDatabaseMutex()
   return std::make_shared<std::mutex>();
 }
 
-std::shared_ptr<std::queue<std::pair<InotifyEventType, std::string>>> createInotifyEventQueue()
+std::shared_ptr<std::queue<FileEvent>> createInotifyEventQueue()
 {
   Logger::info("Creating inotify event queue.");
-  return std::make_shared<std::queue<std::pair<InotifyEventType, std::string>>>();
+  return std::make_shared<std::queue<FileEvent>>();
 }
 
-std::shared_ptr<std::set<std::pair<InotifyEventType, std::string>>> createInotifyEventMap()
+std::shared_ptr<std::set<FileEvent>> createInotifyEventMap()
 {
   Logger::info("Creating inotify event map.");
-  return std::make_shared<std::set<std::pair<InotifyEventType, std::string>>>();
+  return std::make_shared<std::set<FileEvent>>();
 }
+
 std::shared_ptr<std::mutex> createInotifyEventMutex()
 {
   Logger::info("Creating inotify event mutex.");
@@ -623,9 +624,90 @@ std::thread startLongPollingThread(std::shared_ptr<DropboxClient> dropboxClient,
                        dropboxClient->monitorEvents(config["user"].get<std::string>(), eventQueue, eventQueueMutex); });
 }
 
-void process_watched_events(std::shared_ptr<std::queue<std::pair<InotifyEventType, std::string>>> inotifyEventQueue, std::shared_ptr<std::set<std::pair<InotifyEventType, std::string>>> inotifyEventMap,
+void process_local_file_deletion(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                 const std::string &filePath)
+{
+  Logger::info("Processing local deletion for: " + filePath);
+  Database::removeDBEntry(db, filePath, "file");
+  Database::removeFileFromParentDirectory(db, filePath);
+  auto response = dropboxClient->deleteFile(filePath);
+  if (response.responseCode == 200)
+    Logger::info("File deleted from Dropbox: " + filePath);
+  else
+    Logger::error("Failed to delete file from Dropbox: " + response.content);
+}
+
+void process_local_file_creation(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                 const std::string &filePath, const std::string &fileFSPath)
+{
+  Logger::info("Processing local creation for: " + filePath);
+  File_Metadata fileMeta;
+  fileMeta.setFileName(filePath);
+  if (!fileMeta.loadFromDatabase(db))
+  {
+    fileMeta.file_content = FileSystemUtil::readFileContent(fileFSPath, base_path);
+    auto response = dropboxClient->createFile(filePath, fileMeta.file_content);
+    if (response.responseCode == 200)
+    {
+      Logger::info("File created on Dropbox: " + filePath);
+      auto responseJson = nlohmann::json::parse(response.content);
+      fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
+      fileMeta.fileSize = responseJson["size"].get<int>();
+      fileMeta.rev = responseJson["rev"].get<std::string>();
+      fileMeta.latest_rev = responseJson["rev"].get<std::string>();
+      if (!fileMeta.storeToDatabase(db))
+        Logger::error("Failed to store file metadata in database: " + filePath);
+      else
+        Logger::info("File metadata stored successfully: " + filePath);
+    }
+    else
+    {
+      Logger::error("Failed to create file on Dropbox: " + response.content);
+    }
+  }
+  else
+  {
+    Logger::info("File already exists in database: " + filePath);
+  }
+}
+
+void process_local_file_modification(std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient,
+                                     const std::string &filePath, const std::string &fileFSPath)
+{
+  Logger::info("Processing local modification for: " + filePath);
+  File_Metadata fileMeta;
+  fileMeta.setFileName(filePath);
+  if (fileMeta.loadFromDatabase(db))
+  {
+    auto localContent = FileSystemUtil::readFileContent(fileFSPath, base_path);
+    auto response = dropboxClient->modifyFile(filePath, localContent, fileMeta.latest_rev);
+    if (response.responseCode == 200)
+    {
+      Logger::info("File modified on Dropbox: " + filePath);
+      auto responseJson = nlohmann::json::parse(response.content);
+      fileMeta.content_hash = responseJson["content_hash"].get<std::string>();
+      fileMeta.fileSize = responseJson["size"].get<int>();
+      fileMeta.rev = responseJson["rev"].get<std::string>();
+      fileMeta.latest_rev = responseJson["rev"].get<std::string>();
+      if (!fileMeta.storeToDatabase(db))
+        Logger::error("Failed to update file metadata in database: " + filePath);
+      else
+        Logger::info("File metadata updated successfully: " + filePath);
+    }
+    else
+    {
+      Logger::error("Failed to modify file on Dropbox: " + response.content);
+    }
+  }
+  else
+  {
+    Logger::info("File not found in database: " + filePath);
+  }
+}
+
+void process_watched_events(std::shared_ptr<std::queue<FileEvent>> inotifyEventQueue, std::shared_ptr<std::set<FileEvent>> inotifyEventMap,
                             std::shared_ptr<std::mutex> inotifyEventMutex,
-                            std::shared_ptr<std::condition_variable> inotifyEventConditionVariable)
+                            std::shared_ptr<std::condition_variable> inotifyEventConditionVariable, std::shared_ptr<rocksdb::DB> db, std::shared_ptr<DropboxClient> dropboxClient)
 {
   while (true)
   {
@@ -638,7 +720,31 @@ void process_watched_events(std::shared_ptr<std::queue<std::pair<InotifyEventTyp
       auto event = inotifyEventQueue->front();
       inotifyEventQueue->pop();
       inotifyEventMap->erase(event);
-      Logger::info("Processing inotify event: " + std::to_string(static_cast<int>(event.first)) + " for path: " + event.second);
+      Logger::info("Processing inotify event: " + std::to_string(static_cast<int>(event.eventType)) + " for path: " + event.path + " of type: " + (event.fileType == FileType::File ? "File" : "Directory"));
+
+      auto eventType = event.eventType;
+      auto filePath = event.path;
+      auto fileType = event.fileType;
+      auto relativePath = filePath.substr(base_path.size() + 1);
+      auto fileName = user + "/" + relativePath;
+      if (fileType == FileType::File)
+      {
+        if (eventType == InotifyEventType::Created || eventType == InotifyEventType::MovedTo)
+        {
+          process_local_file_creation(db, dropboxClient, fileName, filePath);
+        }
+        else if (eventType == InotifyEventType::Modified)
+        {
+          process_local_file_modification(db, dropboxClient, fileName, filePath);
+        }
+        else if (eventType == InotifyEventType::Deleted || eventType == InotifyEventType::MovedFrom)
+        {
+          process_local_file_deletion(db, dropboxClient, fileName);
+        }
+      }
+      else if (fileType == FileType::Directory)
+      {
+      }
     }
   }
 }
@@ -658,6 +764,7 @@ int main()
   bootup_1(config, db);
   Logger::info("Running bootup_2...");
   auto dropboxClient = initializeDropboxClient(config);
+  auto dropboxClientCommunicator = initializeDropboxClient(config);
   bootup_2(db, dropboxClient, config);
   Logger::info("Running bootup_3...");
   bootup_3(db, dropboxClient, config);
@@ -674,11 +781,11 @@ int main()
   // Start Dropbox long polling in a separate thread.
   std::thread longPollingThread = startLongPollingThread(dropboxClient, config, eventQueue, eventQueueMutex);
 
-  std::thread eventServerProcessorThread(EventProcessor::processEventQueue, eventQueue, eventQueueMutex, db, dropboxClient, dbMutex);
+  std::thread eventServerProcessorThread(EventProcessor::processEventQueue, eventQueue, eventQueueMutex, db, dropboxClientCommunicator, dbMutex);
 
   std::thread watcherThread(watch_directory, base_path, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable);
 
-  std::thread eventLocalProcessorThread(process_watched_events, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable);
+  std::thread eventLocalProcessorThread(process_watched_events, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventConditionVariable, db, dropboxClientCommunicator);
 
   // Wait for threads to finish (they won't in this case, but it's good practice).
   eventServerProcessorThread.join();
