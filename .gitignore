@@ -76,3 +76,7 @@ obj/
 
 # LevelDB database files
 testdb/
+
+# log files
+*.log
+*.wal
