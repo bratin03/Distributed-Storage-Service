@@ -8,6 +8,7 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "../../utils/libraries/cpp-httplib/httplib.h"
 #include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
+#include "./logger/Mylogger.h"
 #include <nlohmann/json.hpp> // JSON parsing
 #include <iostream>
 #include <unordered_map>
@@ -26,79 +27,6 @@ const std::string PUBLIC_KEY = R"(-----BEGIN PUBLIC KEY-----
 std::unordered_map<std::string, json> directory_metadata;
 std::unordered_map<std::string, json> file_metadata;
 std::mutex metadata_lock;
-
-
-// Static list of metadata server endpoints (to be replaced with distributed store later)
-std::vector<std::string> metadata_servers = {"http://server1:8080", "http://server2:8080", "http://server3:8080"};
-
-
-// Function to verify JWT token and extract userID
-std::optional<std::string> verify_jwt(const std::string &token) {
-    // Ensure that the PUBLIC_KEY is correctly formatted and valid for the RS256 algorithm.
-    // The error message "JWT Verification Failed" could be more descriptive 
-
-    // Ensure the token has three parts
-    if (std::count(token.begin(), token.end(), '.') != 2) {
-        std::cerr << "JWT Format Error: Incorrect token structure" << std::endl;
-        return std::nullopt;
-    }
-
-    try {
-        auto decoded = jwt::decode(token);
-        auto verifier = jwt::verify()
-            .allow_algorithm(jwt::algorithm::rs256(PUBLIC_KEY))
-            .with_issuer("auth-server");
-
-        verifier.verify(decoded);
-        return decoded.get_payload_claim("userID").as_string();
-    } 
-    catch (const std::system_error& e) {  // Catching system_error from jwt-cpp
-        std::cerr << "JWT Verification Failed: " << e.what() << std::endl;
-        return std::nullopt;
-    }
-    catch (const std::exception &e) {  // Catching general exceptions
-        std::cerr << "JWT Verification Failed: " << e.what() << std::endl;
-        return std::nullopt;
-    }
-}
-
-// Middleware to handle authentication
-// This function verifies the JWT token provided in the "Authorization" header of the request.
-// If the token is valid, it extracts the user ID and assigns it to the userID parameter.
-// If the token is missing, invalid, or expired, it sets the appropriate HTTP response status and error message.
-bool authenticate_request(const Request &req, Response &res, std::string &userID) {
-
-
-    // make sure the format is correct 
-    if (!req.has_header("Authorization")) {
-        res.status = 401;
-        res.set_content(R"({"error": "Missing authentication token"})", "application/json");
-        return false;
-    }
-    
-    std::string token = req.get_header_value("Authorization");
-    // make sure there is no whitespacing error
-    
-    // token.erase(0, token.find_first_not_of(" \t\n\r")); // Trim leading whitespace
-    // token.erase(token.find_last_not_of(" \t\n\r") + 1); // Trim trailing whitespace 
-
-    if (token.rfind("Bearer ", 0) == 0) {
-        // The rfind method with 0 as the second argument is used to check if the token starts with "Bearer "
-        token = token.substr(7); // Remove "Bearer " prefix
-    }
-    
-    auto verified_user = verify_jwt(token);
-    if (!verified_user) {
-        res.status = 403;
-        res.set_content(R"({"error": "Invalid token"})", "application/json");
-        return false;
-    }
-    
-    userID = *verified_user;
-    return true;
-}
-
-
 
 /*
     Example metadata structure 
@@ -119,6 +47,67 @@ bool authenticate_request(const Request &req, Response &res, std::string &userID
     Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points    
 */
 
+
+
+// Static list of metadata server endpoints (to be replaced with distributed store later)
+std::vector<std::string> metadata_servers = {"http://server1:8080", "http://server2:8080", "http://server3:8080"};
+
+
+// Function to verify JWT token and extract userID
+std::optional<std::string> verify_jwt(const std::string &token) {
+    // Ensure the token has three parts
+    if (std::count(token.begin(), token.end(), '.') != 2) {
+        MyLogger::error("JWT Format Error: Incorrect token structure");
+        return std::nullopt;
+    }
+
+    try {
+        auto decoded = jwt::decode(token);
+        auto verifier = jwt::verify()
+            .allow_algorithm(jwt::algorithm::rs256(PUBLIC_KEY))
+            .with_issuer("auth-server");
+
+        verifier.verify(decoded);
+        return decoded.get_payload_claim("userID").as_string();
+    } 
+    catch (const std::system_error& e) {  // Catching system_error from jwt-cpp
+        MyLogger::error("JWT Verification Failed: " + std::string(e.what()));
+        return std::nullopt;
+    }
+    catch (const std::exception &e) {  // Catching general exceptions
+        MyLogger::error("JWT Verification Failed: " + std::string(e.what()));
+        return std::nullopt;
+    }
+}
+
+// Middleware to handle authentication
+bool authenticate_request(const Request &req, Response &res, std::string &userID) {
+    if (!req.has_header("Authorization")) {
+        res.status = 401;
+        res.set_content(R"({"error": "Missing authentication token"})", "application/json");
+        MyLogger::error("Authentication failed: Missing token");
+        return false;
+    }
+
+    std::string token = req.get_header_value("Authorization");
+
+    if (token.rfind("Bearer ", 0) == 0) {
+        token = token.substr(7); // Remove "Bearer " prefix
+    }
+    
+    auto verified_user = verify_jwt(token);
+    if (!verified_user) {
+        res.status = 403;
+        res.set_content(R"({"error": "Invalid token"})", "application/json");
+        MyLogger::error("Authentication failed: Invalid token");
+        return false;
+    }
+
+    userID = *verified_user;
+    MyLogger::info("Authenticated user: " + userID);
+    return true;
+}
+
 // Function to handle directory creation
 void create_directory(const Request &req, Response &res) {
     std::string userID;
@@ -129,14 +118,13 @@ void create_directory(const Request &req, Response &res) {
     
     std::lock_guard<std::mutex> lock(metadata_lock);
 
-    // Check if the directory already exists
     if (directory_metadata.count(key)) {
         res.status = 400;
         res.set_content(R"({"error": "Directory already exists"})", "application/json");
+        MyLogger::warning("Directory already exists: " + key);
         return;
     }
 
-    // Check if the immediate parent directory exists
     size_t last_slash = dir_id.find_last_of('/');
     std::string parent_dir, parent_key;
     if (last_slash != std::string::npos) {
@@ -146,17 +134,13 @@ void create_directory(const Request &req, Response &res) {
         if (!directory_metadata.count(parent_key)) {
             res.status = 404;
             res.set_content(R"({"error": "Parent directory not found"})", "application/json");
+            MyLogger::warning("Parent directory not found: " + parent_key);
             return;
         }
-
-        // Modify parent metadata to include the new subdirectory
-        directory_metadata[parent_key]["subdirectories"][dir_id] = json::array();  // Empty list for now
     }
 
-    // Select 3 metadata servers (for now from the static list)
     std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
     
-    // Store the new directory's metadata
     directory_metadata[key] = {
         {"owner", userID},
         {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
@@ -166,20 +150,15 @@ void create_directory(const Request &req, Response &res) {
         {"parent_dir", parent_dir}        
     };
 
-    // Update parent metadata with chosen endpoints
-    if (!parent_key.empty()) {  // Since parent_key was already set, just check if it exists
+    if (!parent_key.empty()) {
         directory_metadata[parent_key]["subdirectories"][dir_id] = chosen_servers;
     }
 
     res.set_content(R"({"message": "Directory created", "metadata": )" + directory_metadata[key].dump() + "}", "application/json");
-
-
-    // send https request to the notification  server to notify the new directory creation
+    MyLogger::info("Directory created: " + key);
 }
 
-
-
-
+// Function to list a directory
 void list_directory(const Request &req, Response &res) {
     std::string userID;
     if (!authenticate_request(req, res, userID)) return;
@@ -191,13 +170,15 @@ void list_directory(const Request &req, Response &res) {
     if (!directory_metadata.count(key)) {
         res.status = 404;
         res.set_content(R"({"error": "Directory not found"})", "application/json");
+        MyLogger::warning("Directory not found: " + key);
         return;
     }
     
     res.set_content(directory_metadata[key].dump(), "application/json");
+    MyLogger::info("Listed directory: " + key);
 }
 
-
+// Function to create a file
 void create_file(const Request &req, Response &res) {
     std::string userID;
     if (!authenticate_request(req, res, userID)) return;
@@ -208,6 +189,7 @@ void create_file(const Request &req, Response &res) {
     if (!body_json.contains("file_type")) {
         res.status = 400;
         res.set_content(R"({"error": "Missing file_type"})", "application/json");
+        MyLogger::warning("File creation failed: Missing file_type");
         return;
     }
     
@@ -216,126 +198,70 @@ void create_file(const Request &req, Response &res) {
     
     std::lock_guard<std::mutex> lock(metadata_lock);
 
-    // Extract parent directory
     size_t last_slash = file_path.find_last_of('/');
     if (last_slash == std::string::npos) {
         res.status = 400;
         res.set_content(R"({"error": "Invalid file path"})", "application/json");
+        MyLogger::warning("File creation failed: Invalid file path");
         return;
     }
 
     std::string parent_dir = file_path.substr(0, last_slash);
     std::string parent_key = userID + ":" + parent_dir;
 
-    // Check if parent directory exists
     if (!directory_metadata.count(parent_key)) {
         res.status = 404;
         res.set_content(R"({"error": "Parent directory not found"})", "application/json");
+        MyLogger::warning("File creation failed: Parent directory not found");
         return;
     }
 
-    // Check if file already exists
     json &parent_metadata = directory_metadata[parent_key];
-
-    std::string filename = file_path.substr(last_slash + 1); // Extract filename.ext
-        if (parent_metadata["files"].contains(filename)) {
+    std::string filename = file_path.substr(last_slash + 1);
+    if (parent_metadata["files"].contains(filename)) {
         res.status = 409;
         res.set_content(R"({"error": "File already exists"})", "application/json");
+        MyLogger::warning("File already exists: " + filename);
         return;
     }
 
-    // Select 3 metadata servers
     std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
-
-    // Update parent directory metadata to include the new file
-    parent_metadata["files"][filename] = {
+    file_metadata[key] = {
         {"file_type", file_type},
-        {"endpoints", chosen_servers}
-    };
-
-    // Create file metadata
-    directory_metadata[key] = {
         {"owner", userID},
         {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
-        {"file_type", file_type},
-        {"endpoints", chosen_servers},
-        {"parent_dir", parent_dir}
+        {"size", 0},
+        {"servers", chosen_servers}
     };
 
-    res.set_content(R"({"message": "File created successfully"})", "application/json");
-    
-    // send https request to the notification  server to notify the new file creation
+    parent_metadata["files"][filename] = chosen_servers;
+
+    res.set_content(R"({"message": "File created", "metadata": )" + file_metadata[key].dump() + "}", "application/json");
+    MyLogger::info("File created: " + file_path);
 }
-
-
-
-// api to get servers
-
-// api to update the file 
-
-// confirm api
-
-
-
-
-void delete_file(const Request &req, Response &res) {
-    std::string userID;
-    if (!authenticate_request(req, res, userID)) return;
-    
-    std::string file_id = req.matches[1];
-    std::string key = userID + ":" + file_id;
-    
-    std::lock_guard<std::mutex> lock(metadata_lock);
-    if (!file_metadata.count(key)) {
-        res.status = 404;
-        res.set_content(R"({"error": "File not found"})", "application/json");
-        return;
-    }
-    
-    file_metadata.erase(key);
-    res.set_content(R"({"message": "File deleted"})", "application/json");
-}
-
-void delete_directory(const Request &req, Response &res) {
-    std::string userID;
-    if (!authenticate_request(req, res, userID)) return;
-    
-    std::string dir_id = req.matches[1];
-    std::string key = userID + ":" + dir_id;
-    
-    std::lock_guard<std::mutex> lock(metadata_lock);
-    if (!directory_metadata.count(key)) {
-        res.status = 404;
-        res.set_content(R"({"error": "Directory not found"})", "application/json");
-        return;
-    }
-    
-    directory_metadata.erase(key);
-    res.set_content(R"({"message": "Directory deleted"})", "application/json");
-}
-
-
-// void heartbeat_handler(const Request &, Response &res) {
-//     res.set_content(R"({"status": "alive"})", "application/json");
-// }
 
 int main() {
     Server svr;
 
-    // Directory operations
-    svr.Post(R"(/create_directory/([\w-]+))", create_directory);
-    svr.Delete(R"(/delete_directory/([\w-]+))", delete_directory);
-    svr.Get(R"(/list_directory/([\w-]+))", list_directory);
-    
-    // File operations
-    svr.Delete(R"(/delete_file/([\w-]+))", delete_file);
+    // Routes
+    svr.Post("/create-directory/(.*)", create_directory);
+    svr.Get("/list-directory/(.*)", list_directory);
+    svr.Post("/create-file/(.*)", create_file);
 
-    // Heartbeat
-    // svr.Get("/heartbeat", heartbeat_handler);
-    
-    std::cout << "Metadata Server running on port 8080..." << std::endl;
-
-    svr.listen("0.0.0.0", 8080);
-
-    return 0;
+    // Start server
+    MyLogger::info("Server started on http://localhost:8080");
+    svr.listen("localhost", 8080);
 }
+
+// void heartbeat_handler(const Request &, Response &res) {
+    //     res.set_content(R"({"status": "alive"})", "application/json");
+    // }
+
+
+
+
+    // api to get servers
+    
+    // api to update the file 
+    
+    // confirm api
