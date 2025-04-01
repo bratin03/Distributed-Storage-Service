@@ -1,10 +1,17 @@
+/*
+     g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -o metadata_service -lssl -lcrypto
+
+*/
+
+
+
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "../../utils/libraries/cpp-httplib/httplib.h"
+#include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
+#include <nlohmann/json.hpp> // JSON parsing
 #include <iostream>
 #include <unordered_map>
 #include <mutex>
-#include <nlohmann/json.hpp> // JSON parsing
-#include <jwt-cpp/jwt.h>
 #include<bits/stdc++.h>
 
 using json = nlohmann::json;
@@ -30,14 +37,13 @@ std::optional<std::string> verify_jwt(const std::string &token) {
     // Ensure that the PUBLIC_KEY is correctly formatted and valid for the RS256 algorithm.
     // The error message "JWT Verification Failed" could be more descriptive 
 
-      // Ensure the token has three parts
+    // Ensure the token has three parts
     if (std::count(token.begin(), token.end(), '.') != 2) {
         std::cerr << "JWT Format Error: Incorrect token structure" << std::endl;
         return std::nullopt;
     }
 
     try {
-    
         auto decoded = jwt::decode(token);
         auto verifier = jwt::verify()
             .allow_algorithm(jwt::algorithm::rs256(PUBLIC_KEY))
@@ -46,15 +52,11 @@ std::optional<std::string> verify_jwt(const std::string &token) {
         verifier.verify(decoded);
         return decoded.get_payload_claim("userID").as_string();
     } 
-    catch (const jwt::TokenExpiredError &e) {
-        std::cerr << "JWT Verification Failed: Token expired" << std::endl;
+    catch (const std::system_error& e) {  // Catching system_error from jwt-cpp
+        std::cerr << "JWT Verification Failed: " << e.what() << std::endl;
         return std::nullopt;
     }
-    catch (const jwt::SignatureVerificationError &e) {
-        std::cerr << "JWT Verification Failed: Invalid signature" << std::endl;
-        return std::nullopt;
-    }
-    catch (const std::exception &e) {
+    catch (const std::exception &e) {  // Catching general exceptions
         std::cerr << "JWT Verification Failed: " << e.what() << std::endl;
         return std::nullopt;
     }
@@ -112,9 +114,11 @@ bool authenticate_request(const Request &req, Response &res, std::string &userID
             "file2.txt": ["IP5:Port5", "IP6:Port6"]
         },
         "endpoints": ["IP1:Port1", "IP2:Port2", "IP3:Port3"]
+        
 
     Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points    
 */
+
 // Function to handle directory creation
 void create_directory(const Request &req, Response &res) {
     std::string userID;
@@ -167,7 +171,10 @@ void create_directory(const Request &req, Response &res) {
         directory_metadata[parent_key]["subdirectories"][dir_id] = chosen_servers;
     }
 
-    res.set_content(R"({"message": "Directory created", "metadata": )" + metadata.dump() + "}", "application/json");
+    res.set_content(R"({"message": "Directory created", "metadata": )" + directory_metadata[key].dump() + "}", "application/json");
+
+
+    // send https request to the notification  server to notify the new directory creation
 }
 
 
@@ -245,7 +252,7 @@ void create_file(const Request &req, Response &res) {
         {"file_type", file_type},
         {"endpoints", chosen_servers}
     };
-    
+
     // Create file metadata
     directory_metadata[key] = {
         {"owner", userID},
@@ -256,8 +263,17 @@ void create_file(const Request &req, Response &res) {
     };
 
     res.set_content(R"({"message": "File created successfully"})", "application/json");
+    
+    // send https request to the notification  server to notify the new file creation
 }
 
+
+
+// api to get servers
+
+// api to update the file 
+
+// confirm api
 
 
 
@@ -318,6 +334,7 @@ int main() {
     // svr.Get("/heartbeat", heartbeat_handler);
     
     std::cout << "Metadata Server running on port 8080..." << std::endl;
+
     svr.listen("0.0.0.0", 8080);
 
     return 0;
