@@ -10,7 +10,7 @@
 #include <string>
 #include "../hash/dropbox_content_hash.hpp"
 #include "../merge/three_way_merge.hpp"
-
+#include <mutex>
 #include <queue>
 
 // Struct to hold a Dropbox response.
