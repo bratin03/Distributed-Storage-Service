@@ -13,15 +13,25 @@
 #include <iostream>
 #include <unordered_map>
 #include <mutex>
-#include<bits/stdc++.h>
+#include <bits/stdc++.h>
 
 using json = nlohmann::json;
 using namespace httplib;
 
 // Public key for JWT verification
-const std::string PUBLIC_KEY = R"(-----BEGIN PUBLIC KEY-----
-...Your Public Key Here...
------END PUBLIC KEY-----)";
+
+// Load RSA Public Key
+std::string loadKey(const std::string& filename) {
+    std::ifstream file(filename, std::ios::in);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open key file: " + filename);
+    }
+    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+}
+
+
+// Load Public Key
+const std::string PUBLIC_KEY = loadKey("public.pem");
 
 // Simulated metadata store
 std::unordered_map<std::string, json> directory_metadata;
@@ -140,7 +150,10 @@ void create_directory(const Request &req, Response &res) {
     }
 
     std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
-    
+  // write a function to get the servers from the metadata server
+  // and choose the first 3 servers
+  
+  
     directory_metadata[key] = {
         {"owner", userID},
         {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
@@ -265,3 +278,7 @@ int main() {
     // api to update the file 
     
     // confirm api
+
+    // api to delete 
+
+    // first delete the files of the subdirectory then 
