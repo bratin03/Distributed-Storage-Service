@@ -255,6 +255,7 @@ inline void watch_directory(
       FileType fileType = (event->mask & IN_ISDIR) ? FileType::Directory : FileType::File;
 
       // Push the FileEvent into the shared queue in a thread-safe manner.
+      if (!(fileType == FileType::File && full_path.extension() != ".txt"))
       {
         std::lock_guard<std::mutex> lock(*mtx);
         FileEvent fevent{eventType, full_path.string(), fileType};
