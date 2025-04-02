@@ -763,7 +763,8 @@ int main()
   bootup_1(config, db);
   Logger::info("Running bootup_2...");
   auto dropboxClient = AppInitialization::initializeDropboxClient(config);
-  auto dropboxClientForComm = AppInitialization::initializeDropboxClient(config);
+  auto dropboxClientForComm_1 = AppInitialization::initializeDropboxClient(config);
+  auto dropboxClientForComm_2 = AppInitialization::initializeDropboxClient(config);
   bootup_2(db, dropboxClient, config);
   Logger::info("Running bootup_3...");
   bootup_3(db, dropboxClient, config);
@@ -779,9 +780,9 @@ int main()
 
   // Start threads.
   std::thread longPollingThread = AppInitialization::createLongPollingThread(dropboxClient, config, eventQueue, eventQueueMutex);
-  std::thread eventServerProcessorThread(EventProcessor::handleEventQueue, eventQueue, eventQueueMutex, db, dropboxClientForComm, dbMutex);
+  std::thread eventServerProcessorThread(EventProcessor::handleEventQueue, eventQueue, eventQueueMutex, db, dropboxClientForComm_1, dbMutex);
   std::thread watcherThread(watch_directory, base_path, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventCondVar);
-  std::thread localEventProcessorThread(LocalEventProcessor::processInotifyEvents, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventCondVar, db, dropboxClientForComm);
+  std::thread localEventProcessorThread(LocalEventProcessor::processInotifyEvents, inotifyEventQueue, inotifyEventMap, inotifyEventMutex, inotifyEventCondVar, db, dropboxClientForComm_2);
 
   // Join threads (they run indefinitely in this example).
   eventServerProcessorThread.join();
