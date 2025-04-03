@@ -1,42 +1,8 @@
 /*
-     g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -o metadata_service -lssl -lcrypto
+g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -o metadata_service -lssl -lcrypto
 
 */
 
-
-
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "../../utils/libraries/cpp-httplib/httplib.h"
-#include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
-#include "./logger/Mylogger.h"
-#include <nlohmann/json.hpp> // JSON parsing
-#include <iostream>
-#include <unordered_map>
-#include <mutex>
-#include <bits/stdc++.h>
-
-using json = nlohmann::json;
-using namespace httplib;
-
-// Public key for JWT verification
-
-// Load RSA Public Key
-std::string loadKey(const std::string& filename) {
-    std::ifstream file(filename, std::ios::in);
-    if (!file.is_open()) {
-        throw std::runtime_error("Failed to open key file: " + filename);
-    }
-    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
-
-
-// Load Public Key
-const std::string PUBLIC_KEY = loadKey("public.pem");
-
-// Simulated metadata store
-std::unordered_map<std::string, json> directory_metadata;
-std::unordered_map<std::string, json> file_metadata;
-std::mutex metadata_lock;
 
 /*
     Example metadata structure 
@@ -59,12 +25,81 @@ std::mutex metadata_lock;
 
 
 
-// Static list of metadata server endpoints (to be replaced with distributed store later)
-std::vector<std::string> metadata_servers = {"http://server1:8080", "http://server2:8080", "http://server3:8080"};
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "../../utils/libraries/cpp-httplib/httplib.h"
+#include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
+#include "./logger/Mylogger.h"
+#include <nlohmann/json.hpp> // JSON parsing
+#include <iostream>
+#include <unordered_map>
+#include <mutex>
+#include <bits/stdc++.h>
+
+using json = nlohmann::json;
+using namespace httplib;
+
+//server config file
+const std::string config_file = "server_config.json";
+
+// Simulated metadata store
+std::unordered_map<std::string, json> directory_metadata;
+std::unordered_map<std::string, json> file_metadata;
+std::mutex metadata_lock;
 
 
-// Function to verify JWT token and extract userID
+// Public key for JWT verification
+// Load RSA Public Key
+std::string loadKey(const std::string& filename) {
+    std::ifstream file(filename, std::ios::in);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open key file: " + filename);
+    }
+    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+}
+
+
+// Load Public Key
+const std::string PUBLIC_KEY = loadKey("public.pem");
+
+
+
+std::vector<std::string> metadata_servers;
+std::mutex server_lock;
+
+
+// Function to load servers from JSON config file
+void load_server_config(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open server config file: " + filename);
+    }
+
+    nlohmann::json config;
+    file >> config;
+    
+    std::lock_guard<std::mutex> lock(server_lock);
+    metadata_servers = config["servers"].get<std::vector<std::string>>();
+}
+
+
+
+// Round-Robin Selection Algorithm
+std::vector<std::string> select_round_robin_servers(int count) {
+    static size_t index = 0;
+    std::lock_guard<std::mutex> lock(server_lock);
+
+    std::vector<std::string> selected;
+    for (int i = 0; i < count; i++) {
+        selected.push_back(metadata_servers[(index + i) % metadata_servers.size()]);
+    }
+    index = (index + count) % metadata_servers.size();
+    return selected;
+}
+
+
+
 std::optional<std::string> verify_jwt(const std::string &token) {
+// Function to verify JWT token and extract userID
     // Ensure the token has three parts
     if (std::count(token.begin(), token.end(), '.') != 2) {
         MyLogger::error("JWT Format Error: Incorrect token structure");
@@ -254,7 +289,10 @@ void create_file(const Request &req, Response &res) {
 }
 
 int main() {
+
     Server svr;
+
+    load_server_config(config_file);
 
     // Routes
     svr.Post("/create-directory/(.*)", create_directory);
@@ -265,6 +303,22 @@ int main() {
     MyLogger::info("Server started on http://localhost:8080");
     svr.listen("localhost", 8080);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // void heartbeat_handler(const Request &, Response &res) {
     //     res.set_content(R"({"status": "alive"})", "application/json");
