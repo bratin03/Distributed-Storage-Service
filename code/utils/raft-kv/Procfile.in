@@ -1,3 +1,0 @@
-node1: ./raft-kv/raft-kv --id 1 --cluster=127.0.0.1:12379,127.0.0.1:22379,127.0.0.1:32379 --port=10000 --ip=127.0.0.3 --redis-port=10000 --redis-ip=127.0.0.2
-node2: ./raft-kv/raft-kv --id 2 --cluster=127.0.0.1:12379,127.0.0.1:22379,127.0.0.1:32379 --port=10001 --ip=127.0.0.3 --redis-port=10001 --redis-ip=127.0.0.2
-node3: ./raft-kv/raft-kv --id 3 --cluster=127.0.0.1:12379,127.0.0.1:22379,127.0.0.1:32379 --port=10002 --ip=127.0.0.3 --redis-port=10002 --redis-ip=127.0.0.2
