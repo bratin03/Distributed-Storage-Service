@@ -35,7 +35,7 @@ int main()
     {
         std::cerr << "Get failed: " << getResp.err << std::endl;
     }
-
+    
     // Delete the key "example"
     std::cout << "Deleting key 'example'..." << std::endl;
     Response delResp = del(servers, "example");
