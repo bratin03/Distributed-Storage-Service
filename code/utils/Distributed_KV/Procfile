@@ -1,0 +1,5 @@
+server0: python3 server.py 0 ip_list.txt
+server1: python3 server.py 1 ip_list.txt
+server2: python3 server.py 2 ip_list.txt
+server3: python3 server.py 3 ip_list.txt
+server4: python3 server.py 4 ip_list.txt
