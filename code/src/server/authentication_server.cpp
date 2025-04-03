@@ -11,24 +11,20 @@
    
    
     2. Generate RSA Keys:
+
+    NOTE: the keys should be in PKCS format 
+    
           - Run the following commands to generate a private and public RSA key pair:
           
            # Generate a private key (2048-bit RSA)
            openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:2048
           
            # Extract the corresponding public key
-           openssl rsa -in private.pem -pubout -out public.pem
+           openssl pkey -in private.pem -pubout -out public.pem
           
           - Place `private.pem` in the same directory as the executable or update the file path in `loadKey()`.
         
-            # Convert the private key to PKCS#8 format:
-            openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in private.pem -out private_pkcs8.pem
-
-          - Place `private_pcks8.pem` in the same directory as the executable or update the file path in `loadKey()`.
-
-            # Convert the public key to PKCS#8 format:
-            openssl rsa -pubin -in public.pem -outform PEM -out public_pkcs8.pem
-
+          - The given commands generate in the correct format but if you face any issues ensure the private key is in the correct format and accessible by the server. 
     
     
     
@@ -102,13 +98,18 @@ std::unordered_map<std::string, std::string> userDB = {
 
 // Load RSA Private Key
 std::string loadKey(const std::string& filename) {
+    
+    MyLogger::info("Loading private key from file: " + filename);
     std::ifstream file(filename, std::ios::in);
+    
     if (!file.is_open()) {
-        MyLogger::error("Failed to open file");
         throw std::runtime_error("Failed to open key file: " + filename);
     }
-    file.close();
-    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    std::string key((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    if (key.empty()) {
+        throw std::runtime_error("Key file is empty: " + filename);
+    }
+    return key;
 
     // Debugging: Log first few characters to verify loading
     // MyLogger::debug("Loaded key: " + key.substr(0, 30) + "..."); 
@@ -116,26 +117,26 @@ std::string loadKey(const std::string& filename) {
 }
 
 // Load keys
-const std::string PRIVATE_KEY = loadKey("private_pkcs8.pem");
+const std::string PRIVATE_KEY = loadKey("private.pem");
 
 // Function to generate JWT token using RS256
 std::string generateJWT(const std::string& userID) {
     
     MyLogger::info("Generating JWT token");
-    
-    if (PRIVATE_KEY.empty()) {
-        MyLogger::error("Private key is empty. Check file path and content.");
-        throw std::runtime_error("Private key is empty");
-    }
+   
 
     auto token = jwt::create()
-        .set_type("JWT")
         .set_issuer("auth-server")
+        .set_type("JWT")
         .set_subject(userID)
         .set_expires_at(std::chrono::system_clock::now() + std::chrono::minutes(30))
-        .sign(jwt::algorithm::rs256(PRIVATE_KEY));
-
-    MyLogger::debug("Generated token for user");
+        .sign(jwt::algorithm::rs256("",PRIVATE_KEY, "",""));   
+        /*
+            there was a problem with the private key, so I used "" for the public key and "" for the secret key
+            The rs256 constructor has multiple overloads, and using only PRIVATE_KEY assumes it's both the private and public key. However:
+            RSA256 (RS256) uses asymmetric cryptography, meaning it requires a private key for signing and a public key for verification
+        */
+    // MyLogger::debug("Generated token for user");
     
     return token;
 }
