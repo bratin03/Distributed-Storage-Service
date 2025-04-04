@@ -1,0 +1,27 @@
+# Test Case 1: Creating Directory "dropbox/A"
+
+## Request:
+POST /create_directory HTTP/1.1
+Host: localhost:<port>
+Content-Type: application/json
+Authorization: Basic dXNlcjE6cGFzczEyMzQ=
+
+Body:
+{
+    "path": "dropbox/A"
+}
+
+## Expected Response:
+Status: 200 OK
+Body:
+{
+    "message": "Directory created",
+    "metadata": {
+        "owner": "user1",
+        "timestamp": 1710000000,
+        "subdirectories": {},
+        "files": {},
+        "endpoints": ["server1", "server2", "server3"],
+        "parent_dir": "dropbox"
+    }
+}
