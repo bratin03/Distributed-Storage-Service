@@ -1,349 +1,225 @@
-// NotificationServer.cpp
+// notification_server.cpp
 #include <httplib.h>
 #include <iostream>
-#include <string>
 #include <map>
-#include <queue>
 #include <mutex>
+#include <string>
+#include <vector>
 #include <chrono>
 #include <thread>
+#include <queue>
+#include <condition_variable>
 #include <nlohmann/json.hpp>
-#include <set>
 
 using json = nlohmann::json;
+
+struct Notification {
+    std::string userID;
+    std::string type; // directory_deleted, file_deleted, etc.
+    json data;
+    std::string metadataServerCallback; // URL to call back to confirm delivery
+};
 
 class NotificationServer {
 private:
     httplib::Server server;
+    std::map<std::string, std::vector<httplib::Response*>> pendingRequests;
+    std::queue<Notification> notificationQueue;
+    std::mutex mutex;
+    std::condition_variable cv;
+    const int MAX_POLL_TIMEOUT = 60; // seconds
     
-    // Store notifications for each client
-    std::map<std::string, std::queue<json>> clientNotifications;
+    void sendConfirmation(const Notification& notification) {
+        if (notification.metadataServerCallback.empty()) {
+            return; // No callback URL provided
+        }
+        
+        try {
+            // Extract host and path from callback URL
+            std::string url = notification.metadataServerCallback;
+            size_t protocolEnd = url.find("://");
+            size_t hostStart = (protocolEnd != std::string::npos) ? protocolEnd + 3 : 0;
+            size_t pathStart = url.find("/", hostStart);
+            
+            std::string host;
+            std::string path;
+            
+            if (pathStart != std::string::npos) {
+                host = url.substr(hostStart, pathStart - hostStart);
+                path = url.substr(pathStart);
+            } else {
+                host = url.substr(hostStart);
+                path = "/";
+            }
+            
+            // Check for port in host
+            int port = 80;
+            size_t portPos = host.find(":");
+            if (portPos != std::string::npos) {
+                port = std::stoi(host.substr(portPos + 1));
+                host = host.substr(0, portPos);
+            }
+            
+            // Prepare confirmation data
+            json confirmationData = {
+                {"userID", notification.userID},
+                {"type", notification.type},
+                {"data", notification.data}
+            };
+            
+            // Send confirmation back to metadata server
+            httplib::Client client(host, port);
+            auto res = client.Post(path, confirmationData.dump(), "application/json");
+            
+            if (res && res->status == 200) {
+                std::cout << "Notification delivery confirmed to metadata server" << std::endl;
+            } else {
+                std::cerr << "Failed to confirm notification delivery to metadata server" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error sending confirmation: " << e.what() << std::endl;
+        }
+    }
     
-    // Track operations that are in progress
-    std::map<std::string, std::set<std::string>> pendingOperations; // operation_id -> set of client_ids
+    void processNotificationsThread() {
+        while (true) {
+            Notification notification;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                cv.wait(lock, [this]{ return !notificationQueue.empty(); });
+                notification = notificationQueue.front();
+                notificationQueue.pop();
+            }
+            
+            bool delivered = false;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                if (pendingRequests.count(notification.userID)) {
+                    json responseData = {
+                        {"type", notification.type},
+                        {"data", notification.data}
+                    };
+                    
+                    std::string responseStr = responseData.dump();
+                    for (auto* response : pendingRequests[notification.userID]) {
+                        response->set_content(responseStr, "application/json");
+                    }
+                    
+                    // Clear the pending requests for this user
+                    pendingRequests.erase(notification.userID);
+                    delivered = true;
+                }
+            }
+            
+            if (delivered) {
+                // Send confirmation back to metadata server
+                sendConfirmation(notification);
+            } else {
+                std::cout << "No connected clients for userID: " << notification.userID << std::endl;
+                // Store notification for delayed delivery if needed
+                // Or immediately confirm that no clients are available
+                sendConfirmation(notification);
+            }
+        }
+    }
     
-    // Mutex for thread safety
-    std::mutex mtx;
-
 public:
     NotificationServer(int port) {
-        // Set up the routes
-        setupRoutes();
+        // Start notification processing thread
+        std::thread processor(&NotificationServer::processNotificationsThread, this);
+        processor.detach();
         
-        // Start the server
+        // Handle long polling requests
+        server.Get("/poll", [this](const httplib::Request& req, httplib::Response& res) {
+            if (!req.has_param("userID")) {
+                res.status = 400;
+                res.set_content("Missing userID parameter", "text/plain");
+                return;
+            }
+            
+            std::string userID = req.get_param_value("userID");
+            auto startTime = std::chrono::steady_clock::now();
+            bool timeout = false;
+            
+            // Register this client for notifications
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                pendingRequests[userID].push_back(&res);
+            }
+            
+            // Wait until either response is set or timeout occurs
+            while (!res.body.size() && !timeout) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
+                
+                if (elapsed >= MAX_POLL_TIMEOUT) {
+                    timeout = true;
+                }
+            }
+            
+            // If timed out, remove this response from pending requests
+            if (timeout) {
+                std::unique_lock<std::mutex> lock(mutex);
+                auto& responses = pendingRequests[userID];
+                responses.erase(std::remove(responses.begin(), responses.end(), &res), responses.end());
+                if (responses.empty()) {
+                    pendingRequests.erase(userID);
+                }
+                res.status = 204; // No Content
+            }
+        });
+        
+        // Handle notification submissions from metadata server
+        server.Post("/notify", [this](const httplib::Request& req, httplib::Response& res) {
+            try {
+                json notification = json::parse(req.body);
+                
+                if (!notification.contains("userID") || 
+                    !notification.contains("type") || 
+                    !notification.contains("data")) {
+                    res.status = 400;
+                    res.set_content("Invalid notification format", "text/plain");
+                    return;
+                }
+                
+                // Extract callback URL if provided
+                std::string callbackUrl = "";
+                if (notification.contains("callback")) {
+                    callbackUrl = notification["callback"].get<std::string>();
+                }
+                
+                // Queue notification for processing
+                {
+                    std::unique_lock<std::mutex> lock(mutex);
+                    notificationQueue.push({
+                        notification["userID"].get<std::string>(),
+                        notification["type"].get<std::string>(),
+                        notification["data"],
+                        callbackUrl
+                    });
+                    cv.notify_one();
+                }
+                
+                res.set_content("Notification queued", "text/plain");
+            } catch (const std::exception& e) {
+                res.status = 400;
+                res.set_content(std::string("Error: ") + e.what(), "text/plain");
+            }
+        });
+        
         std::cout << "Starting notification server on port " << port << std::endl;
         server.listen("0.0.0.0", port);
     }
-
-private:
-    void setupRoutes() {
-        // Client long polling endpoint
-        server.Get("/poll", [this](const httplib::Request& req, httplib::Response& res) {
-            handlePoll(req, res);
-        });
-        
-        // Endpoint for metadata server to send notifications
-        server.Post("/notify", [this](const httplib::Request& req, httplib::Response& res) {
-            handleNotify(req, res);
-        });
-        
-        // Endpoint for metadata server to check notification status
-        server.Get("/status", [this](const httplib::Request& req, httplib::Response& res) {
-            handleStatus(req, res);
-        });
-        
-        // Endpoint for metadata server to confirm notifications were processed
-        server.Post("/confirm", [this](const httplib::Request& req, httplib::Response& res) {
-            handleConfirm(req, res);
-        });
-    }
-    
-    void handlePoll(const httplib::Request& req, httplib::Response& res) {
-        // Get client ID
-        std::string clientId = req.get_param_value("client_id");
-        if (clientId.empty()) {
-            res.status = 400;
-            res.set_content("{\"error\":\"Missing client_id parameter\"}", "application/json");
-            return;
-        }
-        
-        // Get timeout (default: 30 seconds)
-        int timeout = 30;
-        if (req.has_param("timeout")) {
-            try {
-                timeout = std::stoi(req.get_param_value("timeout"));
-                // Ensure timeout is reasonable
-                timeout = std::max(1, std::min(timeout, 120));
-            } catch (...) {
-                // Use default on error
-            }
-        }
-        
-        // Check if there are existing notifications
-        json notification;
-        bool hasNotification = false;
-        std::string operationId;
-        
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            auto& queue = clientNotifications[clientId];
-            
-            if (!queue.empty()) {
-                // Get the oldest notification
-                notification = queue.front();
-                queue.pop();
-                hasNotification = true;
-                
-                // If this notification is part of an operation, update pending operations
-                if (notification.contains("operation_id")) {
-                    operationId = notification["operation_id"];
-                    
-                    // Remove this client from the pending operations list
-                    auto it = pendingOperations.find(operationId);
-                    if (it != pendingOperations.end()) {
-                        it->second.erase(clientId);
-                        
-                        // If no more clients are pending for this operation, remove it
-                        if (it->second.empty()) {
-                            pendingOperations.erase(it);
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (hasNotification) {
-            // Send the notification
-            res.set_content(notification.dump(), "application/json");
-            return;
-        }
-        
-        // No immediate notification, do long polling
-        auto startTime = std::chrono::steady_clock::now();
-        auto endTime = startTime + std::chrono::seconds(timeout);
-        
-        while (std::chrono::steady_clock::now() < endTime) {
-            // Check for new notifications
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                auto& queue = clientNotifications[clientId];
-                
-                if (!queue.empty()) {
-                    // Get the notification
-                    notification = queue.front();
-                    queue.pop();
-                    hasNotification = true;
-                    
-                    // Update pending operations if needed
-                    if (notification.contains("operation_id")) {
-                        operationId = notification["operation_id"];
-                        
-                        auto it = pendingOperations.find(operationId);
-                        if (it != pendingOperations.end()) {
-                            it->second.erase(clientId);
-                            
-                            if (it->second.empty()) {
-                                pendingOperations.erase(it);
-                            }
-                        }
-                    }
-                    
-                    break;
-                }
-            }
-            
-            // Sleep to avoid busy waiting
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        
-        if (hasNotification) {
-            // Send the notification
-            res.set_content(notification.dump(), "application/json");
-        } else {
-            // Timeout occurred
-            res.status = 204; // No content
-        }
-    }
-    
-    void handleNotify(const httplib::Request& req, httplib::Response& res) {
-        // Parse notification request
-        json notification;
-        try {
-            notification = json::parse(req.body);
-        } catch (...) {
-            res.status = 400;
-            res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
-            return;
-        }
-        
-        // Validate required fields
-        if (!notification.contains("target_clients")) {
-            res.status = 400;
-            res.set_content("{\"error\":\"Missing target_clients field\"}", "application/json");
-            return;
-        }
-        
-        // Get operation ID if available
-        std::string operationId;
-        if (notification.contains("operation_id")) {
-            operationId = notification["operation_id"];
-        } else {
-            // Generate a unique operation ID if not provided
-            operationId = "op_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-            notification["operation_id"] = operationId;
-        }
-        
-        // Add timestamp if not provided
-        if (!notification.contains("timestamp")) {
-            notification["timestamp"] = std::chrono::system_clock::now().time_since_epoch().count();
-        }
-        
-        // Extract target clients
-        std::vector<std::string> targetClients;
-        try {
-            for (const auto& client : notification["target_clients"]) {
-                targetClients.push_back(client.get<std::string>());
-            }
-        } catch (...) {
-            res.status = 400;
-            res.set_content("{\"error\":\"Invalid target_clients format\"}", "application/json");
-            return;
-        }
-        
-        // Queue the notification for each target client
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            
-            // Add this operation to pending operations
-            auto& clientSet = pendingOperations[operationId];
-            
-            for (const auto& clientId : targetClients) {
-                clientNotifications[clientId].push(notification);
-                clientSet.insert(clientId);
-            }
-        }
-        
-        // Send success response
-        json response = {
-            {"success", true},
-            {"operation_id", operationId},
-            {"queued_for", targetClients.size()}
-        };
-        
-        res.set_content(response.dump(), "application/json");
-    }
-    
-    void handleStatus(const httplib::Request& req, httplib::Response& res) {
-        // Check if an operation ID is provided
-        if (!req.has_param("operation_id")) {
-            // Return general status
-            json status = getGeneralStatus();
-            res.set_content(status.dump(), "application/json");
-            return;
-        }
-        
-        std::string operationId = req.get_param_value("operation_id");
-        
-        // Get status for this specific operation
-        json status = getOperationStatus(operationId);
-        res.set_content(status.dump(), "application/json");
-    }
-    
-    void handleConfirm(const httplib::Request& req, httplib::Response& res) {
-        // Parse the confirmation request
-        json confirmation;
-        try {
-            confirmation = json::parse(req.body);
-        } catch (...) {
-            res.status = 400;
-            res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
-            return;
-        }
-        
-        // Check for operation ID
-        if (!confirmation.contains("operation_id")) {
-            res.status = 400;
-            res.set_content("{\"error\":\"Missing operation_id field\"}", "application/json");
-            return;
-        }
-        
-        std::string operationId = confirmation["operation_id"];
-        bool isComplete = false;
-        
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            // Check if operation is complete (not in pending operations)
-            isComplete = pendingOperations.find(operationId) == pendingOperations.end();
-        }
-        
-        // Send response
-        json response = {
-            {"success", true},
-            {"operation_id", operationId},
-            {"is_complete", isComplete}
-        };
-        
-        res.set_content(response.dump(), "application/json");
-    }
-    
-    json getGeneralStatus() {
-        std::lock_guard<std::mutex> lock(mtx);
-        
-        json status = {
-            {"pending_operations", pendingOperations.size()},
-            {"client_count", clientNotifications.size()}
-        };
-        
-        return status;
-    }
-    
-    json getOperationStatus(const std::string& operationId) {
-        std::lock_guard<std::mutex> lock(mtx);
-        
-        json status = {
-            {"operation_id", operationId},
-            {"is_complete", pendingOperations.find(operationId) == pendingOperations.end()}
-        };
-        
-        // If operation is still pending, include details
-        auto it = pendingOperations.find(operationId);
-        if (it != pendingOperations.end()) {
-            status["pending_clients"] = it->second.size();
-            
-            // Include full client list if it's not too large
-            if (it->second.size() <= 100) {
-                json clientList = json::array();
-                for (const auto& clientId : it->second) {
-                    clientList.push_back(clientId);
-                }
-                status["pending_client_ids"] = clientList;
-            }
-        }
-        
-        return status;
-    }
 };
 
-int main(int argc, char** argv) {
-    // Default port
-    int port = 8080;
-    
-    // Parse command line arguments
-    if (argc > 1) {
-        try {
-            port = std::stoi(argv[1]);
-        } catch (...) {
-            std::cerr << "Invalid port number, using default: " << port << std::endl;
-        }
-    }
-    
-    try {
-        // Create and start the notification server
-        NotificationServer server(port);
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <port>" << std::endl;
         return 1;
     }
     
+    int port = std::stoi(argv[1]);
+    NotificationServer server(port);
     return 0;
 }
