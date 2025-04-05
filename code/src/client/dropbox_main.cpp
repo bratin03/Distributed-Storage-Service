@@ -313,10 +313,14 @@ namespace EventProcessor
         auto serverContent = DropboxUtils::downloadFileContent(filePath, dropboxClient);
         auto baseContent = fileMeta.file_content;
         std::string mergedContent;
+        Logger::debug("Base content: " + baseContent);
+        Logger::debug("Server content: " + serverContent);
+        Logger::debug("Local content: " + localContent);
         bool mergeSuccessful = MergeLib::three_way_merge(baseContent, localContent, serverContent, mergedContent);
         if (mergeSuccessful)
         {
           Logger::info("Merge successful for file: " + filePath);
+          Logger::debug("Merged content: " + mergedContent);
           fileMeta.file_content = mergedContent;
           FileSystemUtil::createFile(relativePath, base_path, mergedContent);
           auto response = dropboxClient->modifyFile(filePath, mergedContent, event["rev"].get<std::string>());
