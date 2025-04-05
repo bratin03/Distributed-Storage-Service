@@ -129,6 +129,7 @@ std::string generateJWT(const std::string& userID) {
         .set_issuer("auth-server")
         .set_type("JWT")
         .set_subject(userID)
+        .set_payload_claim("userID", jwt::claim(userID)) 
         .set_expires_at(std::chrono::system_clock::now() + std::chrono::minutes(30))
         .sign(jwt::algorithm::rs256("",PRIVATE_KEY, "",""));   
         /*
