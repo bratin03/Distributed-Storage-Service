@@ -106,7 +106,7 @@ DropboxResponse DropboxClient::createFile(const std::string &dropboxPath,
   headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
   std::string apiArg =
       "{\"path\": \"" + dropboxPath +
-      "\", \"mode\": \"add\", \"autorename\": true, \"mute\": false}";
+      "\", \"mode\": \"add\", \"autorename\": false, \"mute\": false}";
   std::string dropboxArgHeader = "Dropbox-API-Arg: " + apiArg;
   headers = curl_slist_append(headers, dropboxArgHeader.c_str());
 
@@ -143,7 +143,7 @@ DropboxResponse DropboxClient::listContent(const std::string &dropboxPath)
   headers = curl_slist_append(headers, authHeader.c_str());
   headers = curl_slist_append(headers, "Content-Type: application/json");
 
-  // Prepare the initial JSON request
+  // Prepare the initial JSON requestf
   nlohmann::json j;
   j["path"] = dropboxPath;
   j["recursive"] = true; // Set to true to list all files in subdirectories.
