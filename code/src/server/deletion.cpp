@@ -1,20 +1,20 @@
 // metadata_server.cpp
-#include <httplib.h>
+
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "../../utils/libraries/cpp-httplib/httplib.h"
+#include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
+#include "../../utils/Distributed_KV/client_lib/kv.hpp"
+#include "./logger/Mylogger.h"
+#include <nlohmann/json.hpp> // JSON parsing
 #include <iostream>
-#include <string>
-#include <vector>
-#include <map>
+#include <unordered_map>
 #include <mutex>
-#include <nlohmann/json.hpp>
+#include <bits/stdc++.h>
 
 using json = nlohmann::json;
 
-// Block server response structure
-struct Response {
-    bool success;
-    std::string value;
-    std::string err;
-};
+// server config file
+const std::string server_config_file = "server_config.json";
 
 class MetadataServer {
 private:
@@ -427,80 +427,6 @@ public:
         server.listen("0.0.0.0", port);
     }
 };
-
-// Block server client implementation
-Response set(const std::vector<std::string>& servers, const std::string& key, const std::string& value) {
-    Response response;
-    for (const auto& server : servers) {
-        size_t colonPos = server.find(':');
-        if (colonPos == std::string::npos) continue;
-        
-        std::string host = server.substr(0, colonPos);
-        int port = std::stoi(server.substr(colonPos + 1));
-        
-        httplib::Client client(host, port);
-        json body = {{"key", key}, {"value", value}};
-        auto res = client.Post("/set", body.dump(), "application/json");
-        
-        if (res && res->status == 200) {
-            response.success = true;
-            response.value = res->body;
-            return response;
-        }
-    }
-    
-    response.success = false;
-    response.err = "Failed to set key on all servers";
-    return response;
-}
-
-Response get(const std::vector<std::string>& servers, const std::string& key) {
-    Response response;
-    for (const auto& server : servers) {
-        size_t colonPos = server.find(':');
-        if (colonPos == std::string::npos) continue;
-        
-        std::string host = server.substr(0, colonPos);
-        int port = std::stoi(server.substr(colonPos + 1));
-        
-        httplib::Client client(host, port);
-        auto res = client.Get("/get?key=" + httplib::detail::encode_url(key));
-        
-        if (res && res->status == 200) {
-            response.success = true;
-            response.value = res->body;
-            return response;
-        }
-    }
-    
-    response.success = false;
-    response.err = "Failed to get key from all servers";
-    return response;
-}
-
-Response del(const std::vector<std::string>& servers, const std::string& key) {
-    Response response;
-    for (const auto& server : servers) {
-        size_t colonPos = server.find(':');
-        if (colonPos == std::string::npos) continue;
-        
-        std::string host = server.substr(0, colonPos);
-        int port = std::stoi(server.substr(colonPos + 1));
-        
-        httplib::Client client(host, port);
-        auto res = client.Delete("/del?key=" + httplib::detail::encode_url(key));
-        
-        if (res && res->status == 200) {
-            response.success = true;
-            response.value = res->body;
-            return response;
-        }
-    }
-    
-    response.success = false;
-    response.err = "Failed to delete key from all servers";
-    return response;
-}
 
 int main(int argc, char* argv[]) {
     if (argc < 5) {
