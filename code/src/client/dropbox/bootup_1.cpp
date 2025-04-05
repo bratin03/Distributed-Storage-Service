@@ -81,20 +81,34 @@ private:
     // Process each filesystem entry.
     for (const auto &entry : fs::directory_iterator(currentPath))
     {
-      bool isDir = fs::is_directory(entry);
-      fs::path relChild = fs::relative(entry.path(), basePath_);
-      std::string childKey = user_ + "/" + relChild.string() + (isDir ? "/" : "");
-      Logger::info("Processing entry: " + childKey);
-      fsChildrenKeys.insert(childKey);
-      childrenDetails.push_back({isDir, relChild.string()});
-      if (isDir)
+      if (fs::is_directory(entry))
       {
+        bool isDir = true;
+        fs::path relChild = fs::relative(entry.path(), basePath_);
+        std::string childKey = user_ + "/" + relChild.string() + "/";
+        Logger::info("Processing directory: " + childKey);
+        fsChildrenKeys.insert(childKey);
+        childrenDetails.push_back({isDir, relChild.string()});
         Logger::debug("Recursing into directory: " + entry.path().string());
         syncDirectory(entry.path());
       }
-      else
+      else if (fs::is_regular_file(entry))
       {
-        Logger::debug("File detected: " + entry.path().string());
+        // Only process .txt files.
+        if (entry.path().extension() == ".txt")
+        {
+          bool isDir = false;
+          fs::path relChild = fs::relative(entry.path(), basePath_);
+          std::string childKey = user_ + "/" + relChild.string();
+          Logger::info("Processing txt file: " + childKey);
+          fsChildrenKeys.insert(childKey);
+          childrenDetails.push_back({isDir, relChild.string()});
+          Logger::debug("File detected: " + entry.path().string());
+        }
+        else
+        {
+          Logger::debug("Skipping non-txt file: " + entry.path().string());
+        }
       }
     }
 
@@ -142,6 +156,7 @@ private:
       }
       else
       {
+        // Only add file metadata for txt files.
         std::string fileKey = user_ + "/" + child.second;
         metadata.files.push_back(fileKey);
         updateFileMetadata(fileKey);

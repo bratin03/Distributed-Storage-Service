@@ -4,6 +4,9 @@
 #include <rocksdb/db.h>
 #include <string>
 #include <vector>
+#include <filesystem> // Added for file extension checking
+
+namespace fs = std::filesystem;
 
 namespace DropboxAPI
 {
@@ -124,6 +127,15 @@ private:
   {
     Logger::debug("Processing file entry.");
     std::string fullPath = entry["path_display"];
+
+    // Only process files with .txt extension.
+    fs::path filePath(fullPath);
+    if (filePath.extension() != ".txt")
+    {
+      Logger::debug("Skipping non-txt file: " + fullPath);
+      return;
+    }
+
     Logger::info("Processing file: " + fullPath);
 
     File_Metadata fileMetadata;
@@ -210,11 +222,15 @@ private:
     std::string serverContent = downloadFileContent(fileMetadata.getFileName());
     std::string baseContent = fileMetadata.file_content;
     std::string mergedContent;
+    Logger::debug("Base content: " + baseContent);
+    Logger::debug("Server content: " + serverContent);
+    Logger::debug("Local content: " + localContent);
     bool mergePossible = MergeLib::three_way_merge(baseContent, localContent, serverContent, mergedContent);
 
     if (mergePossible)
     {
       Logger::info("Merge successful for: " + fileMetadata.getFileName());
+      Logger::debug("Merged content: " + mergedContent);
       fileMetadata.file_content = mergedContent;
       Logger::debug("Updating local file with merged content for: " + fileMetadata.getFileName());
       FileSystemUtil::createFile(relativePath, monitoringDirectory_, mergedContent);
@@ -287,7 +303,7 @@ private:
     {
       Logger::error("Failed to store updated metadata for file after conflict resolution: " + fileMetadata.getFileName());
     }
-    updateDirectoryMetadata(fileMetadata.fileName);
+    updateDirectoryMetadata(fileMetadata.getFileName());
 
     File_Metadata conflictMetadata;
     conflictMetadata.setFileName(conflictFilePath);

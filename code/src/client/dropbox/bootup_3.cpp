@@ -6,13 +6,26 @@
 #include <string>
 #include <map>
 
-// Helper function: Process missing file
+// Helper function: Check if file has a .txt extension.
+bool isTxtFile(const std::string &fileName)
+{
+    return (fileName.size() >= 4 && fileName.substr(fileName.size() - 4) == ".txt");
+}
+
+// Helper function: Process missing file (only .txt files)
 bool processMissingFile(const std::string &fileKey,
                         std::shared_ptr<rocksdb::DB> db,
                         const std::string &user,
                         const std::string &base_path,
                         std::shared_ptr<DropboxClient> dropboxClient)
 {
+    // Make sure we process only .txt files.
+    if (!isTxtFile(fileKey))
+    {
+        Logger::debug("Skipping non-txt file: " + fileKey);
+        return true;
+    }
+
     Logger::debug("Processing missing file: " + fileKey);
     Logger::info("File not found on server: " + fileKey);
     File_Metadata fileMetadata;
@@ -56,7 +69,7 @@ bool processMissingFile(const std::string &fileKey,
     }
 }
 
-// Helper function: Process missing directory
+// Helper function: Process missing directory (unchanged)
 bool processMissingDirectory(const std::string &dirKey,
                              std::shared_ptr<DropboxClient> dropboxClient)
 {
@@ -105,6 +118,12 @@ void syncDirectoryRecursively(const std::string &current_dir,
     // Process files in the current directory.
     for (const auto &fileKey : metadata.files)
     {
+        // Only process .txt files.
+        if (!isTxtFile(fileKey))
+        {
+            Logger::debug("Skipping non-txt file: " + fileKey);
+            continue;
+        }
         Logger::debug("Checking file: " + fileKey + " in directory: " + current_dir);
         if (fileExists.find(fileKey) == fileExists.end())
         {
@@ -154,17 +173,26 @@ void bootup_3(std::shared_ptr<rocksdb::DB> db,
     Logger::debug("Parsed Dropbox entries.");
 
     std::map<std::string, bool> fileExists;
-    // Mark existing files and directories from Dropbox.
+    // Mark existing files and directories from Dropbox, filtering for .txt files.
     for (const auto &entry : entries)
     {
         if (entry[".tag"] == "file")
         {
             std::string fileName = entry["path_display"];
-            fileExists[fileName] = true;
-            Logger::debug("Marked existing file: " + fileName);
+            // Only mark .txt files.
+            if (isTxtFile(fileName))
+            {
+                fileExists[fileName] = true;
+                Logger::debug("Marked existing file: " + fileName);
+            }
+            else
+            {
+                Logger::debug("Skipping non-txt file in Dropbox listing: " + fileName);
+            }
         }
         else if (entry[".tag"] == "folder")
         {
+            // For directories, keep the trailing slash.
             std::string folderName = std::string(entry["path_display"]) + "/";
             fileExists[folderName] = true;
             Logger::debug("Marked existing folder: " + folderName);
