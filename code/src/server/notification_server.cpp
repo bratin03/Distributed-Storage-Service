@@ -1,6 +1,8 @@
 // notification_server.cpp
+#include "./logger/Mylogger.h"
 #include <httplib.h>
 #include <iostream>
+#include <fstream>
 #include <map>
 #include <mutex>
 #include <string>
@@ -11,7 +13,37 @@
 #include <condition_variable>
 #include <nlohmann/json.hpp>
 
+
 using json = nlohmann::json;
+
+// server config file
+const std::string server_config_file = "server_config.json";
+std::vector<std::string> notification_servers;
+
+
+// Function to load servers from JSON config file
+void load_server_config(const std::string &filename)
+{
+    try
+    {
+        std::ifstream file(filename);
+        if (!file.is_open())
+        {
+            MyLogger::error("Failed to open server config file: " + filename);
+            throw std::runtime_error("Failed to open server config file");
+        }
+
+        nlohmann::json config;
+        file >> config;
+
+        notification_servers = config["notification_server"].get<std::vector<std::string>>();
+    }
+    catch (const std::exception &e)
+    {
+        MyLogger::error("Exception in load_server_config: " + std::string(e.what()));
+    }
+}
+
 
 struct Notification {
     std::string userID;
@@ -147,6 +179,7 @@ public:
                 pendingRequests[userID].push_back(&res);
             }
             
+            MyLogger::info("User " + userID + " is waiting for notifications");
             // Wait until either response is set or timeout occurs
             while (!res.body.size() && !timeout) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -223,3 +256,10 @@ int main(int argc, char* argv[]) {
     NotificationServer server(port);
     return 0;
 }
+
+
+/*
+
+
+
+*/
