@@ -372,6 +372,7 @@ namespace EventProcessor
           conflictMeta.setFileName(conflictFilePath);
           conflictMeta.content_hash = localHash;
           conflictMeta.fileSize = localContent.size();
+          conflictMeta.file_content = localContent;
           auto conflictResponse = dropboxClient->createFile(conflictFilePath, localContent);
           if (conflictResponse.responseCode == 200)
           {
@@ -565,6 +566,7 @@ namespace LocalEventProcessor
         fileMeta.fileSize = responseJson["size"].get<int>();
         fileMeta.rev = responseJson["rev"].get<std::string>();
         fileMeta.latest_rev = responseJson["rev"].get<std::string>();
+        fileMeta.file_content = localContent;
         if (!fileMeta.storeToDatabase(db))
           Logger::error("Failed to update metadata in DB: " + filePath);
         else
