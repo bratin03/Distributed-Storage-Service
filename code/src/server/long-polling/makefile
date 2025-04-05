@@ -4,13 +4,13 @@ CXXFLAGS  = -std=c++17 -O2 -Wall -Wextra -g -pg
 LIBS      = -lboost_system -lpthread
 
 # Targets
-all: server client
+all: server.out client.out
 
-server: main.o notification_server.o
-	$(CXX) $(CXXFLAGS) -o server main.o notification_server.o $(LIBS)
+server.out: main.o notification_server.o
+	$(CXX) $(CXXFLAGS) -o server.out main.o notification_server.o $(LIBS)
 
-client: client.o notification_client.o
-	$(CXX) $(CXXFLAGS) -o client client.o notification_client.o $(LIBS)
+client.out: client.o notification_client.o
+	$(CXX) $(CXXFLAGS) -o client.out client.o notification_client.o $(LIBS)
 
 # Compile source files
 main.o: main.cpp notification_server.hpp

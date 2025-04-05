@@ -9,14 +9,23 @@ using json = nlohmann::json;
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 
-int main() {
+int main(int argc, char *argv[])
+{
+    std::string config_file = "config.json";
+    if (argc > 1)
+    {
+        config_file = argv[1];
+    }
+
     // Seed the random number generator.
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
-    try {
+    try
+    {
         // Load configuration from config.json.
-        std::ifstream ifs("config.json");
-        if (!ifs) {
+        std::ifstream ifs(config_file);
+        if (!ifs)
+        {
             std::cerr << "Failed to open config.json\n";
             return 1;
         }
@@ -35,7 +44,8 @@ int main() {
         server.run();
 
         // For demonstration, simulate an external event that broadcasts a notification after 5 seconds.
-        std::thread notifier([&server, &user_id]() {
+        std::thread notifier([&server, &user_id,&ip]()
+                             {
             int count = 1 ; 
             while(count++ ) {
                 if(count%2 == 0) {
@@ -45,18 +55,20 @@ int main() {
                     user_id = "2"; 
                 }
                 
-                std::cout << "Broadcasting notification to user " << user_id << "\n";
-                json notification = {{"message", "New notification for user " + user_id + " !" + std::to_string(std::rand())}};
+                json notification = {{"message", "New notification for user " + user_id },
+                                     {"timestamp", std::time(nullptr)},
+                                     {"client_ip", ip}};
 
                 // Simulate a delay before sending the notification.
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                std::this_thread::sleep_for(std::chrono::seconds(2));
                 server.broadcastNotification(user_id,notification.dump());
-            }
-        });
+            } });
 
         ioc.run();
         notifier.join();
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e)
+    {
         std::cerr << "Error: " << e.what() << "\n";
     }
     return 0;

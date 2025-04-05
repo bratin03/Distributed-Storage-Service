@@ -1,7 +1,8 @@
 {
-    "server_ip": "0.0.0.0",
-    "server_port": 8082,
-    "timeout_seconds": 10,
-    "user_id": "123"
-  }
-  
+  "server_ip": "127.0.0.10",
+  "server_port": 10000,
+  "timeout_seconds": 10,
+  "user_id": "123",
+  "client_ip": "127.0.0.1",
+  "client_port": 20000
+}
