@@ -19,9 +19,9 @@ namespace distributed_KV
 
         struct Response
         {
-            bool success;
             std::string value; // Contains the response payload if applicable.
             std::string err;   // Contains error message if any.
+            bool success;
         };
 
         // Helper: CURL write callback to accumulate response data.
@@ -36,7 +36,7 @@ namespace distributed_KV
         // Helper: Send an HTTP request (GET or PUT) with a JSON payload.
         Response sendRequest(const std::string &url, const std::string &reqType, const nlohmann::json &message)
         {
-            Response res{false, "", ""};
+            Response res{"", "",false};
             CURL *curl = curl_easy_init();
             if (!curl)
             {
@@ -179,7 +179,7 @@ namespace distributed_KV
                     // Check if the server indicates a failure (e.g., key never set)
                     if (jsonResponse.contains("code") && jsonResponse["code"] == "fail")
                     {
-                        return {false, "", "Error: Key does not exist"};
+                        return {"", "Error: Key does not exist",false};
                     }
                     // Check if payload contains a value
                     if (jsonResponse.contains("payload") && jsonResponse["payload"].contains("value"))
@@ -187,19 +187,19 @@ namespace distributed_KV
                         std::string value = jsonResponse["payload"]["value"];
                         if (value == DELETE_VALUE)
                         {
-                            return {false, "", "Error: Key does not exist"};
+                            return {"", "Error: Key does not exist",false};
                         }
                         res.value = value;
                     }
                     else
                     {
                         // No value returned, treat as key does not exist.
-                        return {false, "", "Error: Key does not exist"};
+                        return {"", "Error: Key does not exist",false};
                     }
                 }
                 catch (std::exception &e)
                 {
-                    return {false, "", std::string("JSON parsing error: ") + e.what()};
+                    return {"", std::string("JSON parsing error: ") + e.what(),false};
                 }
             }
             return res;

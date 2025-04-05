@@ -251,7 +251,7 @@ namespace Database_handler{
     }
 
 
-    distributed_KV::Response get_directory_metadata(const std::string &key, json &out_metadata)
+    distributed_KV::Response get_directory_metadata(const std::string &key)
     {
         auto &servers = select_server_group(key);
         distributed_KV::Response res = distributed_KV::get(servers, key);
@@ -260,17 +260,6 @@ namespace Database_handler{
         {
             MyLogger::warning("KV GET failed for key: " + key + " | Error: " + res.err);
             return res;
-        }
-
-        try
-        {
-            out_metadata = json::parse(res.value);
-        }
-        catch (const std::exception &e)
-        {
-            res.success = false;
-            res.err = std::string("JSON parse error: ") + e.what();
-            MyLogger::error("Failed to parse JSON for key in get_directory_metadata " + key + ": " + res.err);
         }
 
         return res;
@@ -325,7 +314,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         std::string key = userID + ":" + dir_id;
 
         json existing_metadata;
-        auto get_result = Database_handler::get_directory_metadata(key, existing_metadata);
+        auto get_result = Database_handler::get_directory_metadata(key);
         if (get_result.success)
         {
             res.status = 400;
@@ -341,7 +330,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             parent_dir = dir_id.substr(0, last_slash);
             parent_key = userID + ":" + parent_dir;
 
-            auto parent_get_result = Database_handler::get_directory_metadata(parent_key, parent_metadata);
+            auto parent_get_result = Database_handler::get_directory_metadata(parent_key);
             if (!parent_get_result.success)
             {
                 res.status = 404;
@@ -349,6 +338,17 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 res.set_content(R"({"error": "Parent directory not found"})", "application/json");
                 return;
             }
+            try{
+                parent_metadata = json::parse(parent_get_result.value);
+            }
+            catch (const std::exception &e)
+            {
+                res.status = 500;
+                MyLogger::error("Failed to parse parent directory metadata: " + std::string(e.what()));
+                res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
+                return;
+            }
+
         }
 
         // Choose 3 block servers for this directory
@@ -399,106 +399,167 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
 }
-        
-// Function to list a directory
+   // Function to list a directory
 void list_directory(const httplib::Request &req, httplib::Response &res)
 {
+    MyLogger::info("Received directory listing request");
     std::string userID;
     if (!Authentication::authenticate_request(req, res, userID))
         return;
 
-    std::string dir_id = req.matches[1];
-    std::string key = userID + ":" + dir_id;
+    try{
 
-    std::lock_guard<std::mutex> lock(metadata_lock);
-    if (!directory_metadata.count(key))
-    {
-        res.status = 404;
-        res.set_content(R"({"error": "Directory not found"})", "application/json");
-        MyLogger::warning("Directory not found: " + key);
-        return;
+        std::string dir_id = req.matches[1];
+        std::string key = userID + ":" + dir_id;
+        
+        json metadata;
+        auto kv_response = Database_handler::get_directory_metadata(key);
+        if (!kv_response.success)
+        {
+            res.status = 404;
+            res.set_content(R"({"error": "Directory not found"})", "application/json");
+            return;
+        }
+        
+        try{
+            metadata = json::parse(kv_response.value);
+        }
+        catch (const std::exception &e)
+        {
+            res.status = 500;
+            MyLogger::error("Failed to parse directory metadata: " + std::string(e.what()));
+            res.set_content(R"({"error": "Failed to parse metadata"})", "application/json");
+            return;
+        }
+        
+        
+            res.set_content(metadata.dump(), "application/json");
+            MyLogger::info("Listed directory from KV store: " + key);
+        
     }
-
-    res.set_content(directory_metadata[key].dump(), "application/json");
-    MyLogger::info("Listed directory: " + key);
+    catch (const std::exception &e){
+            res.status = 500;
+            MyLogger::error("Exception in list directory: " + std::string(e.what()));
+            res.set_content(R"({"error": "Internal server error"})", "application/json");
+    }
 }
+
+
+
+
 
 // Function to create a file
 void create_file(const httplib::Request &req, httplib::Response &res)
 {
+    MyLogger::info("Received file creation request");
+
     std::string userID;
     if (!Authentication::authenticate_request(req, res, userID))
         return;
 
-    // std::string file_path = req.matches[1]; // Extract file path from request
-    json body_json = json::parse(req.body);
-
-    // if (!body_json.contains("file_type"))
-    // {
-    //     res.status = 400;
-    //     res.set_content(R"({"error": "Missing file_type"})", "application/json");
-    //     MyLogger::warning("File creation failed: Missing file type");
-    //     return;
-    // }
-
-    if (!body_json.contains("path"))
+    try
     {
-        res.status = 400;
-        MyLogger::warning("File creation failed: Missing file path");
-        res.set_content(R"({"error": "Missing path"})", "application/json");
-        return;
+        json body_json = json::parse(req.body);
+        if (!body_json.contains("path"))
+        {
+            res.status = 400;
+            MyLogger::warning("File creation failed: Missing file path");
+            res.set_content(R"({"error": "Missing path"})", "application/json");
+            return;
+        }
+
+        std::string file_path = body_json["path"];
+        std::string key = userID + ":" + file_path;
+
+        size_t last_slash = file_path.find_last_of('/');
+        if (last_slash == std::string::npos)
+        {
+            res.status = 400;
+            MyLogger::warning("File creation failed: Invalid file path (no parent directory)");
+            res.set_content(R"({"error": "Invalid file path"})", "application/json");
+            return;
+        }
+
+        std::string parent_dir = file_path.substr(0, last_slash);
+        std::string parent_key = userID + ":" + parent_dir;
+        std::string filename = file_path.substr(last_slash + 1);
+
+        // Fetch parent directory metadata
+        auto parent_res = Database_handler::get_directory_metadata(parent_key);
+        if (!parent_res.success)
+        {
+            res.status = 404;
+            MyLogger::warning("File creation failed: Parent directory not found");
+            res.set_content(R"({"error": "Parent directory not found"})", "application/json");
+            return;
+        }
+
+        json parent_metadata;
+        try
+        {
+            parent_metadata = json::parse(parent_res.value);
+        }
+        catch (const std::exception &e)
+        {
+            res.status = 500;
+            MyLogger::error("Failed to parse parent directory metadata: " + std::string(e.what()));
+            res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
+            return;
+        }
+
+        // Check for duplicate file
+        if (parent_metadata["files"].contains(filename))
+        {
+            res.status = 409;
+            MyLogger::warning("File already exists: " + filename);
+            res.set_content(R"({"error": "File already exists"})", "application/json");
+            return;
+        }
+
+        // Choose servers to assign the file to
+        std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
+
+        json file_meta = {
+            {"parent_dir", parent_dir},
+            {"filename", filename},
+            {"owner", userID},
+            {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
+            {"size", 0},
+            {"servers", chosen_servers}
+        };
+
+        // Add to parent's files
+        parent_metadata["files"][filename] = chosen_servers;
+
+        // Store both file and updated parent directory metadata
+        auto file_ok = Database_handler::set_directory_metadata(key, file_meta.dump());
+        auto parent_ok = Database_handler::set_directory_metadata (parent_key, parent_metadata.dump());
+
+        if (!file_ok.success || !parent_ok.success)
+        {
+            res.status = 500;
+            MyLogger::error("Failed to update KV store for file or parent directory");
+            res.set_content(R"({"error": "Failed to store file metadata"})", "application/json");
+            return;
+        }
+
+        res.set_content(R"({"message": "File created", "metadata": )" + file_meta.dump() + "}", "application/json");
+        MyLogger::info("File created: " + key);
     }
-
-    std::string file_path = body_json["path"];
-    std::string file_type = body_json["file_type"];
-    std::string key = userID + ":" + file_path;
-
-    std::lock_guard<std::mutex> lock(metadata_lock);
-
-    size_t last_slash = file_path.find_last_of('/');
-    if (last_slash == std::string::npos)
+    catch (const std::exception &e)
     {
-        res.status = 400;
-        res.set_content(R"({"error": "Invalid file path"})", "application/json");
-        MyLogger::warning("File creation failed: Invalid file path (parent directory not found)");
-        return;
+        MyLogger::error("Exception in create_file: " + std::string(e.what()));
+        res.status = 500;
+        res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
-
-    std::string parent_dir = file_path.substr(0, last_slash);
-    std::string parent_key = userID + ":" + parent_dir;
-
-    if (!directory_metadata.count(parent_key))
-    {
-        res.status = 404;
-        res.set_content(R"({"error": "Parent directory not found"})", "application/json");
-        MyLogger::warning("File creation failed: Parent directory not found");
-        return;
-    }
-
-    json &parent_metadata = directory_metadata[parent_key];
-    std::string filename = file_path.substr(last_slash + 1);
-    if (parent_metadata["files"].contains(filename))
-    {
-        res.status = 409;
-        res.set_content(R"({"error": "File already exists"})", "application/json");
-        MyLogger::warning("File already exists: " + filename);
-        return;
-    }
-
-    std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
-    file_metadata[key] = {
-        {"file_type", file_type},
-        {"owner", userID},
-        {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
-        {"size", 0},
-        {"servers", chosen_servers}};
-
-    parent_metadata["files"][filename] = chosen_servers;
-
-    res.set_content(R"({"message": "File created", "metadata": )" + file_metadata[key].dump() + "}", "application/json");
-    MyLogger::info("File created: " + file_path);
 }
 
+
+
+
+
+
+// Function to initialize root directories
 void initialize_root_directories() {
     std::lock_guard<std::mutex> lock(metadata_lock);  
     std::string userID = "user1";
