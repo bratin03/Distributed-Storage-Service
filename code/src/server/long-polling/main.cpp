@@ -10,6 +10,9 @@ namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 
 int main() {
+    // Seed the random number generator.
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
     try {
         // Load configuration from config.json.
         std::ifstream ifs("config.json");
@@ -42,10 +45,11 @@ int main() {
                     user_id = "2"; 
                 }
                 
-                std::this_thread::sleep_for(std::chrono::seconds(2));
                 std::cout << "Broadcasting notification to user " << user_id << "\n";
-                json notification = {{"message", "New notification for user " + user_id}};
+                json notification = {{"message", "New notification for user " + user_id + " !" + std::to_string(std::rand())}};
 
+                // Simulate a delay before sending the notification.
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 server.broadcastNotification(user_id,notification.dump());
             }
         });
