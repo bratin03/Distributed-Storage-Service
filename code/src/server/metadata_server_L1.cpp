@@ -193,10 +193,13 @@ namespace Authentication{
 
 
 
+
 namespace Database_handler{
 
     std::vector<std::vector<std::string>> server_groups;
+    inline std::vector<json> blockserver_lists;
     const std::string database_server_config_file = "database_server_config.json";
+    const std::string block_server_config_file = "block_server_config.json";
 
     bool load_server_config(const std::string &filename, std::vector<std::vector<std::string>> &server_groups)
     {
@@ -243,11 +246,46 @@ namespace Database_handler{
     }
 
 
+    inline void load_blockserver_config(const std::string &filepath = block_server_config_file) {
+        std::ifstream file(filepath);
+        if (!file.is_open()) {
+            MyLogger::error("Could not open blockserver_config.json");
+            return;
+        }
+
+        json config_json;
+        try {
+            file >> config_json;
+        } catch (const std::exception &e) {
+            MyLogger::error("Failed to parse blockserver_config.json: " + std::string(e.what()));
+            return;
+        }
+
+        blockserver_lists.clear();
+        for (auto &[key, value] : config_json.items()) {
+            if (!value.is_array()) {
+                MyLogger::warning("Skipping malformed list in blockserver_config.json: " + key);
+                continue;
+            }
+            blockserver_lists.push_back(value);
+        }
+
+        MyLogger::info("Loaded blockserver config with " + std::to_string(blockserver_lists.size()) + " server groups.");
+    }
+
+
     std::vector<std::string> &select_server_group(const std::string &key)
     {
         static std::hash<std::string> hasher;
         size_t idx = hasher(key) % server_groups.size();
         return server_groups[idx];
+    }
+
+    json& select_block_server_group(const std::string &key)
+    {
+        static std::hash<std::string> hasher;
+        size_t idx = hasher(key) % blockserver_lists.size();
+        return blockserver_lists[idx];
     }
 
 
@@ -525,6 +563,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"size", 0},
+            {"version", 1},
             {"servers", chosen_servers}
         };
 
@@ -554,6 +593,84 @@ void create_file(const httplib::Request &req, httplib::Response &res)
     }
 }
 
+
+void update_file(const httplib::Request &req, httplib::Response &res)
+{
+    MyLogger::info("Received file update request");
+
+    std::string userID;
+    if (!Authentication::authenticate_request(req, res, userID))
+        return;
+
+    try
+    {
+        json body_json = json::parse(req.body);
+
+        if (!body_json.contains("path") || !body_json.contains("version"))
+        {
+            res.status = 400;
+            res.set_content(R"({"error": "Missing path or version"})", "application/json");
+            MyLogger::warning("File update failed: Missing path or version");
+            return;
+        }
+
+        std::string file_path = body_json["path"];
+        int client_version = body_json["version"];
+        std::string key = userID + ":" + file_path;
+
+        auto kv_response = Database_handler::get_directory_metadata(key);
+        if (!kv_response.success)
+        {
+            res.status = 404;
+            res.set_content(R"({"error": "File not found"})", "application/json");
+            MyLogger::warning("File update failed: File not found: " + key);
+            return;
+        }
+
+        json metadata;
+        try
+        {
+            metadata = json::parse(kv_response.value);
+        }
+        catch (const std::exception &e)
+        {
+            res.status = 500;
+            MyLogger::error("Failed to parse file metadata: " + std::string(e.what()));
+            res.set_content(R"({"error": "Failed to parse file metadata"})", "application/json");
+            return;
+        }
+
+        int current_version = metadata.value("version", 1); // default to 1 for safety
+
+        json &block_servers = Database_handler::select_block_server_group(key);
+
+        if (client_version == current_version)
+        {
+            res.status = 200;
+            json response_json = {
+                {"status", "ok"},
+                {"servers", block_servers}};
+            res.set_content(response_json.dump(), "application/json");
+            MyLogger::info("File update accepted: " + key);
+        }
+        else
+        {
+            res.status = 409;
+            json response_json = {
+                {"status", "outdated"},
+                {"current_version", current_version},
+                {"servers", block_servers}};
+            res.set_content(response_json.dump(), "application/json");
+            MyLogger::warning("File update rejected due to version mismatch: " + key);
+        }
+    }
+    catch (const std::exception &e)
+    {
+        res.status = 500;
+        MyLogger::error("Exception in update_file: " + std::string(e.what()));
+        res.set_content(R"({"error": "Internal server error"})", "application/json");
+    }
+}
 
 
 
@@ -588,6 +705,7 @@ int main()
     Initiation::load_server_config(server_config_file);
     initialize_root_directories();
     Database_handler::load_server_config(Database_handler::database_server_config_file, Database_handler::server_groups);
+    Database_handler::load_blockserver_config(Database_handler::block_server_config_file);
 
     // Routes
     svr.Post("/create-directory", create_directory);
