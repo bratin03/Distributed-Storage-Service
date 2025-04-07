@@ -12,7 +12,7 @@ int main()
 
     // Construct the JSON payload for signup
     json payload;
-    payload["username"] = "testuser";
+    payload["username"] = "lordu";
     payload["password"] = "testpassword"; // In production, this should be a hashed password
 
     // Send the POST request to the /signup endpoint

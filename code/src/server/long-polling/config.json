@@ -3,6 +3,5 @@
   "server_port": 10000,
   "timeout_seconds": 10,
   "user_id": "123",
-  "client_ip": "127.0.0.1",
-  "client_port": 20000
+  "cahce_timeout": 5
 }

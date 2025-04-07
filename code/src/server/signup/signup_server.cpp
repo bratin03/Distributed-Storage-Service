@@ -14,6 +14,11 @@
 
 #include "../logger/Mylogger.h"
 
+#include "../../../utils/Distributed_KV/client_lib/kv.hpp"
+
+// Global
+std::vector<std::vector<std::string>> blockserver_lists;
+
 // For convenience
 using json = nlohmann::json;
 
@@ -37,6 +42,60 @@ bool loadConfig(const std::string &filename, json &config)
         return false;
     }
     return true;
+}
+
+inline void load_blockserver_config(const std::string &filepath)
+{
+    std::ifstream file(filepath);
+    if (!file.is_open())
+    {
+        MyLogger::error("Could not open blockserver_config.json");
+        return;
+    }
+
+    json config_json;
+    try
+    {
+        file >> config_json;
+    }
+    catch (const std::exception &e)
+    {
+        MyLogger::error("Failed to parse blockserver_config.json: " + std::string(e.what()));
+        return;
+    }
+
+    blockserver_lists.clear();
+    for (auto &[key, value] : config_json.items())
+    {
+        if (!value.is_array())
+        {
+            MyLogger::warning("Skipping malformed list in blockserver_config.json: " + key);
+            continue;
+        }
+
+        std::vector<std::string> serverGroup;
+        for (const auto &server : value)
+        {
+            if (server.is_string())
+            {
+                serverGroup.push_back(server.get<std::string>());
+            }
+            else
+            {
+                MyLogger::warning("Non-string element found in list: " + key);
+            }
+        }
+        blockserver_lists.push_back(serverGroup);
+    }
+
+    MyLogger::info("Loaded blockserver config with " + std::to_string(blockserver_lists.size()) + " server groups.");
+}
+
+std::vector<std::string> &select_block_server_group(const std::string &key)
+{
+    static std::hash<std::string> hasher;
+    size_t idx = hasher(key) % blockserver_lists.size();
+    return blockserver_lists[idx];
 }
 
 // Function to perform atomic signup using Redis SET NX
@@ -79,6 +138,29 @@ bool signupUser(const std::string &username, const std::string &password, const 
         MyLogger::warning(errorMsg);
     }
 
+    if (success == true)
+    {
+        std::string RootKey = username + ":dropbbox";
+        auto servers = select_block_server_group(RootKey);
+        json new_metadata = {
+            {"owner", username},
+            {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
+            {"subdirectories", json::object()},
+            {"files", json::object()}};
+        auto val = new_metadata.dump();
+        auto RootCreationStatus = distributed_KV::set(servers, RootKey, val);
+        if (!RootCreationStatus.success)
+        {
+            MyLogger::error("Failed to create root directory metadata: " + RootCreationStatus.err);
+            errorMsg = "Failed to create root directory metadata.";
+            success = false;
+        }
+        else
+        {
+            MyLogger::info("Root directory created for user: " + username);
+        }
+    }
+
     freeReplyObject(reply);
     redisFree(context);
     return success;
@@ -106,6 +188,8 @@ int main(int argc, char *argv[])
         MyLogger::error("Failed to load config from: " + config_path);
         return 1;
     }
+
+    load_blockserver_config(config["blockserver_config_file"]);
 
     // Read HTTP server configuration
     std::string http_ip = config["http_server"]["ip"];
@@ -137,7 +221,7 @@ int main(int argc, char *argv[])
                         std::string password = req_json["password"]; // In production, this should be a hashed password
 
                         std::string errorMsg;
-                        if (signupUser(username, password, redis_ip, redis_port, errorMsg))
+                        if (signupUser(username, password, redis_ip, redis_port,errorMsg))
                         {
                             res.set_content("{\"status\": \"Signup successful\"}", "application/json");
                             MyLogger::info("Signup successful for user: " + username);

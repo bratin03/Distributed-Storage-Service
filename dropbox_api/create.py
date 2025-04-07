@@ -7,33 +7,45 @@ with open('config.json', 'r') as config_file:
 
 access_token = config['access_token']
 
-# Specify the path in Dropbox where you want to create the file
-dropbox_path = '/folder/new_file.txt'  # change as needed
+# Specify the Dropbox file path for simulation
+dropbox_path = '/folder/simulated_file.txt'
 
-# Specify the content for the new file
-file_content = b"Hello, Dropbox! This is a new file created via the API."
+# Content for the first file upload
+file_content1 = b"Hello, Dropbox! This is the first simulated file."
+
+# Content for the second file upload (different content)
+file_content2 = b"Hello, Dropbox! This is the second simulated file with different content."
 
 # Dropbox upload endpoint for creating (uploading) a file
 url = "https://content.dropboxapi.com/2/files/upload"
 
-# Set the headers, including authorization, API arguments, and content type.
-headers = {
-    "Authorization": "Bearer " + access_token,
-    "Dropbox-API-Arg": json.dumps({
-        "path": dropbox_path,
-        "mode": "add",         # "add" mode creates a new file (or auto-renames if it exists)
-        "autorename": True,
-        "mute": False
-    }),
-    "Content-Type": "application/octet-stream"
-}
+def upload_file(path, content, description):
+    # Set the headers, including authorization, API arguments, and content type.
+    headers = {
+        "Authorization": "Bearer " + access_token,
+        "Dropbox-API-Arg": json.dumps({
+            "path": path,
+            "mode": "add",         # "add" mode creates a new file (or auto-renames if it exists)
+            "autorename": False,
+            "mute": False
+        }),
+        "Content-Type": "application/octet-stream"
+    }
+    
+    # Make the POST request to the Dropbox API
+    response = requests.post(url, headers=headers, data=content)
+    
+    # Print the response with a description
+    print(f"Response for {description}:")
+    try:
+        response_json = response.json()
+        print(json.dumps(response_json, indent=4))
+    except json.JSONDecodeError:
+        print("Response is not in JSON format:", response.text)
+    print("-" * 40)
 
-# Make the POST request to the Dropbox API
-response = requests.post(url, headers=headers, data=file_content)
+# (1) First upload: creates the file normally
+upload_file(dropbox_path, file_content1, "First upload (creation of file)")
 
-# Properly print the JSON response with indentation
-try:
-    response_json = response.json()
-    print(json.dumps(response_json, indent=4))
-except json.JSONDecodeError:
-    print("Response is not in JSON format:", response.text)
+# (2) Second upload: simulates a conflict, triggering autorename behavior with different content
+upload_file(dropbox_path, file_content2, "Second upload (simulated autorename)")
