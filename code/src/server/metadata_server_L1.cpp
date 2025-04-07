@@ -36,7 +36,6 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
 
 using json = nlohmann::json;
 
-
 // server config file
 const std::string server_config_file = "server_config.json";
 const std::string public_key_file = "public.pem";
@@ -75,7 +74,6 @@ namespace Initiation
 
     // Load Public Key
 
-
     // Function to load servers from JSON config file
     void load_server_config(const std::string &filename)
     {
@@ -87,14 +85,14 @@ namespace Initiation
                 MyLogger::error("Failed to open server config file: " + filename);
                 throw std::runtime_error("Failed to open server config file");
             }
-            
+
             nlohmann::json config;
             file >> config;
-            
+
             std::lock_guard<std::mutex> lock(server_lock);
             metadata_servers = config["servers"].get<std::vector<std::string>>();
-            
-            MyLogger::info("Loaded " + std::to_string(metadata_servers.size())+ " servers from config file" );
+
+            MyLogger::info("Loaded " + std::to_string(metadata_servers.size()) + " servers from config file");
         }
         catch (const std::exception &e)
         {
@@ -104,12 +102,11 @@ namespace Initiation
 
 }
 
+namespace Authentication
+{
 
-
-namespace Authentication{
-    
     const std::string PUBLIC_KEY = Initiation::loadKey(public_key_file);
-    
+
     std::optional<std::string> verify_jwt(const std::string &token)
     {
         // Function to verify JWT token and extract userID
@@ -120,22 +117,22 @@ namespace Authentication{
             MyLogger::error("JWT Format Error: Empty token");
             return std::nullopt;
         }
-        
+
         if (std::count(token.begin(), token.end(), '.') != 2)
         {
             MyLogger::error("JWT Format Error: Incorrect token structure");
             return std::nullopt;
         }
-        
+
         MyLogger::debug("JWT Format Correct");
-        
+
         try
         {
             auto decoded = jwt::decode(token);
             auto verifier = jwt::verify()
-            .allow_algorithm(jwt::algorithm::rs256(PUBLIC_KEY))
-            .with_issuer("auth-server");
-            
+                                .allow_algorithm(jwt::algorithm::rs256(PUBLIC_KEY))
+                                .with_issuer("auth-server");
+
             verifier.verify(decoded);
             return decoded.get_payload_claim("userID").as_string();
         }
@@ -150,13 +147,13 @@ namespace Authentication{
             return std::nullopt;
         }
     }
-    
+
     // Middleware to handle authentication
     bool authenticate_request(const httplib::Request &req, httplib::Response &res, std::string &userID)
     {
-        
+
         MyLogger::debug("Inside authenticate_request");
-        
+
         if (!req.has_header("Authorization"))
         {
             res.status = 401;
@@ -165,16 +162,16 @@ namespace Authentication{
             return false;
         }
         MyLogger::debug("Authorization header found");
-        
+
         std::string token = req.get_header_value("Authorization");
-        
+
         if (token.rfind("Bearer ", 0) == 0)
         {
             MyLogger::debug("Bearer found");
             token = token.substr(7); // Remove "Bearer " prefix
         }
         MyLogger::debug("Token trimed: " + token);
-        
+
         auto verified_user = verify_jwt(token);
         if (!verified_user)
         {
@@ -183,18 +180,16 @@ namespace Authentication{
             MyLogger::error("Authentication failed: Invalid token");
             return false;
         }
-        
+
         userID = *verified_user;
         MyLogger::info("Authenticated user: " + userID);
         return true;
     }
-    
+
 }
 
-
-
-
-namespace Database_handler{
+namespace Database_handler
+{
 
     std::vector<std::vector<std::string>> server_groups;
     inline std::vector<json> blockserver_lists;
@@ -245,25 +240,31 @@ namespace Database_handler{
         }
     }
 
-
-    inline void load_blockserver_config(const std::string &filepath = block_server_config_file) {
+    inline void load_blockserver_config(const std::string &filepath = block_server_config_file)
+    {
         std::ifstream file(filepath);
-        if (!file.is_open()) {
+        if (!file.is_open())
+        {
             MyLogger::error("Could not open blockserver_config.json");
             return;
         }
 
         json config_json;
-        try {
+        try
+        {
             file >> config_json;
-        } catch (const std::exception &e) {
+        }
+        catch (const std::exception &e)
+        {
             MyLogger::error("Failed to parse blockserver_config.json: " + std::string(e.what()));
             return;
         }
 
         blockserver_lists.clear();
-        for (auto &[key, value] : config_json.items()) {
-            if (!value.is_array()) {
+        for (auto &[key, value] : config_json.items())
+        {
+            if (!value.is_array())
+            {
                 MyLogger::warning("Skipping malformed list in blockserver_config.json: " + key);
                 continue;
             }
@@ -281,13 +282,12 @@ namespace Database_handler{
         return server_groups[idx];
     }
 
-    json& select_block_server_group(const std::string &key)
+    json &select_block_server_group(const std::string &key)
     {
         static std::hash<std::string> hasher;
         size_t idx = hasher(key) % blockserver_lists.size();
         return blockserver_lists[idx];
     }
-
 
     distributed_KV::Response get_directory_metadata(const std::string &key)
     {
@@ -316,13 +316,12 @@ namespace Database_handler{
 
 }
 
-
 // Round-Robin Selection Algorithm
 void select_round_robin_servers(std::vector<std::string> &selected, int count = 3)
 {
     static size_t index = 0;
     std::lock_guard<std::mutex> lock(server_lock);
-    
+
     for (int i = 0; i < count; i++)
     {
         selected.push_back(metadata_servers[(index + i) % metadata_servers.size()]);
@@ -376,7 +375,8 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 res.set_content(R"({"error": "Parent directory not found"})", "application/json");
                 return;
             }
-            try{
+            try
+            {
                 parent_metadata = json::parse(parent_get_result.value);
             }
             catch (const std::exception &e)
@@ -386,7 +386,6 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
                 return;
             }
-
         }
 
         // Choose 3 block servers for this directory
@@ -399,8 +398,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             {"subdirectories", json::object()},
             {"files", json::object()},
             {"endpoints", chosen_servers},
-            {"parent_dir", parent_dir}
-        };
+            {"parent_dir", parent_dir}};
 
         auto set_result = Database_handler::set_directory_metadata(key, new_metadata);
         if (!set_result.success)
@@ -437,7 +435,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
 }
-   // Function to list a directory
+// Function to list a directory
 void list_directory(const httplib::Request &req, httplib::Response &res)
 {
     MyLogger::info("Received directory listing request");
@@ -445,11 +443,12 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
         return;
 
-    try{
+    try
+    {
 
         std::string dir_id = req.matches[1];
         std::string key = userID + ":" + dir_id;
-        
+
         json metadata;
         auto kv_response = Database_handler::get_directory_metadata(key);
         if (!kv_response.success)
@@ -458,8 +457,9 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
             res.set_content(R"({"error": "Directory not found"})", "application/json");
             return;
         }
-        
-        try{
+
+        try
+        {
             metadata = json::parse(kv_response.value);
         }
         catch (const std::exception &e)
@@ -469,22 +469,17 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
             res.set_content(R"({"error": "Failed to parse metadata"})", "application/json");
             return;
         }
-        
-        
-            res.set_content(metadata.dump(), "application/json");
-            MyLogger::info("Listed directory from KV store: " + key);
-        
+
+        res.set_content(metadata.dump(), "application/json");
+        MyLogger::info("Listed directory from KV store: " + key);
     }
-    catch (const std::exception &e){
-            res.status = 500;
-            MyLogger::error("Exception in list directory: " + std::string(e.what()));
-            res.set_content(R"({"error": "Internal server error"})", "application/json");
+    catch (const std::exception &e)
+    {
+        res.status = 500;
+        MyLogger::error("Exception in list directory: " + std::string(e.what()));
+        res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
 }
-
-
-
-
 
 // Function to create a file
 void create_file(const httplib::Request &req, httplib::Response &res)
@@ -564,15 +559,14 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"size", 0},
             {"version", 1},
-            {"servers", chosen_servers}
-        };
+            {"servers", chosen_servers}};
 
         // Add to parent's files
         parent_metadata["files"][filename] = chosen_servers;
 
         // Store both file and updated parent directory metadata
         auto file_ok = Database_handler::set_directory_metadata(key, file_meta.dump());
-        auto parent_ok = Database_handler::set_directory_metadata (parent_key, parent_metadata.dump());
+        auto parent_ok = Database_handler::set_directory_metadata(parent_key, parent_metadata.dump());
 
         if (!file_ok.success || !parent_ok.success)
         {
@@ -592,7 +586,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
 }
-
 
 void update_file(const httplib::Request &req, httplib::Response &res)
 {
@@ -672,30 +665,25 @@ void update_file(const httplib::Request &req, httplib::Response &res)
     }
 }
 
-
-
-
-
 // Function to initialize root directories
-void initialize_root_directories() {
-    std::lock_guard<std::mutex> lock(metadata_lock);  
+void initialize_root_directories()
+{
+    std::lock_guard<std::mutex> lock(metadata_lock);
     std::string userID = "user1";
     std::string root_key = userID + ":dropbox";
 
-    if (!directory_metadata.count(root_key)) {
+    if (!directory_metadata.count(root_key))
+    {
         directory_metadata[root_key] = {
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"subdirectories", json::object()},
             {"files", json::object()},
-            {"endpoints", json::array()},  // No need for storage servers for root
-            {"parent_dir", ""}
-        };
+            {"endpoints", json::array()}, // No need for storage servers for root
+            {"parent_dir", ""}};
         MyLogger::info("Root directory created manually for " + userID);
     }
 }
-
-
 
 int main()
 {
@@ -715,8 +703,6 @@ int main()
     // Start server
     MyLogger::info("Server started on http://localhost:8080");
     svr.listen("localhost", 8080);
-
-
 }
 
 // void heartbeat_handler(const Request &, Response &res) {
@@ -732,6 +718,5 @@ int main()
 // api to delete
 
 // first delete the files of the subdirectory then
-
 
 // check atomic locking of database that will be used

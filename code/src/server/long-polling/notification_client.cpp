@@ -12,43 +12,53 @@ using tcp = asio::ip::tcp;
 using json = nlohmann::json;
 
 NotificationClient::NotificationClient(
-    const std::string& server_ip,
+    const std::string &server_ip,
     int server_port,
-    const std::string& user_id,
-    std::queue<json>& notification_queue,
-    std::mutex& queue_mutex
-) : server_ip_(server_ip),
-    server_port_(server_port),
-    user_id_(user_id),
-    notification_queue_(notification_queue),
-    queue_mutex_(queue_mutex),
-    running_(false) {}
+    const std::string &user_id,
+    std::queue<json> &notification_queue,
+    std::mutex &queue_mutex) : server_ip_(server_ip),
+                               server_port_(server_port),
+                               user_id_(user_id),
+                               notification_queue_(notification_queue),
+                               queue_mutex_(queue_mutex),
+                               running_(false) {}
 
-NotificationClient::~NotificationClient() {
+NotificationClient::~NotificationClient()
+{
     stop();
 }
 
-void NotificationClient::start() {
-    if (running_) return;
+void NotificationClient::start()
+{
+    if (running_)
+        return;
     MyLogger::info("Starting NotificationClient for user: " + user_id_);
     running_ = true;
     client_thread_ = std::thread(&NotificationClient::run, this);
 }
 
-void NotificationClient::stop() {
-    if (!running_) return;
+void NotificationClient::stop()
+{
+    if (!running_)
+        return;
     MyLogger::info("Stopping NotificationClient for user: " + user_id_);
     running_ = false;
-    if (client_thread_.joinable()) {
+    if (client_thread_.joinable())
+    {
         client_thread_.join();
     }
 }
 
-void NotificationClient::run() {
-    while (running_) {
-        try {
+void NotificationClient::run()
+{
+    while (running_)
+    {
+        try
+        {
             poll_notifications();
-        } catch (std::exception& e) {
+        }
+        catch (std::exception &e)
+        {
             MyLogger::error("Notification client error: " + std::string(e.what()));
             // Add a small delay before reconnecting
             std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -56,7 +66,8 @@ void NotificationClient::run() {
     }
 }
 
-void NotificationClient::poll_notifications() {
+void NotificationClient::poll_notifications()
+{
     asio::io_context ioc;
     tcp::resolver resolver(ioc);
     auto const results = resolver.resolve(server_ip_, std::to_string(server_port_));
@@ -78,17 +89,20 @@ void NotificationClient::poll_notifications() {
     http::read(socket, buffer, res);
 
     // Process the response.
-    try {
+    try
+    {
         // Parse the response body as JSON.
         json notification = json::parse(res.body());
         MyLogger::info("Received notification for user " + user_id_);
-        
+
         // Push the notification to the queue.
         {
             std::lock_guard<std::mutex> lock(queue_mutex_);
             notification_queue_.push(notification);
         }
-    } catch (json::parse_error& e) {
+    }
+    catch (json::parse_error &e)
+    {
         MyLogger::error("Failed to parse notification: " + std::string(e.what()));
         MyLogger::error("Response body: " + res.body());
     }
@@ -96,7 +110,8 @@ void NotificationClient::poll_notifications() {
     // Close the connection.
     boost::system::error_code ec;
     socket.shutdown(tcp::socket::shutdown_both, ec);
-    if (ec) {
+    if (ec)
+    {
         MyLogger::error("Socket shutdown error: " + ec.message());
     }
 }

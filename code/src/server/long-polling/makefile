@@ -22,8 +22,8 @@ notification_server.o: notification_server.cpp notification_server.hpp
 notification_client.o: notification_client.cpp notification_client.hpp
 	$(CXX) $(CXXFLAGS) -c notification_client.cpp
 
-client.o: client.cpp notification_client.cpp
-	$(CXX) $(CXXFLAGS) -c client.cpp notification_client.cpp
+client.o: client.cpp notification_client.hpp
+	$(CXX) $(CXXFLAGS) -c client.cpp
 
 clean:
-	rm -f *.o server client
+	rm -f *.o server.out client.out
