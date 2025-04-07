@@ -1,6 +1,7 @@
 #include "merge.hpp"
 #include <git2.h>
 #include <cstring>
+#include "../logger/Mylogger.hpp"
 
 namespace merge
 {
@@ -8,6 +9,10 @@ namespace merge
                     const std::string &remote, std::string &final)
     {
         git_libgit2_init();
+
+        MyLogger::info("Merge >> Base: " + base);
+        MyLogger::info("Merge >> Local: " + local);
+        MyLogger::info("Merge >> Remote: " + remote);
 
         // Prepare inputs
         git_merge_file_input ancestor = GIT_MERGE_FILE_INPUT_INIT;
@@ -43,6 +48,7 @@ namespace merge
         {
             final.clear();
             git_libgit2_shutdown();
+            MyLogger::warning("Merge >> Failed due to error: " + std::to_string(error));
             return false;
         }
 
@@ -50,10 +56,12 @@ namespace merge
         if (success)
         {
             final.assign(result.ptr, result.len);
+            MyLogger::info("Merge >> Success: " + final);
         }
         else
         {
             final.clear();
+            MyLogger::warning("Merge >> Not automergeable");
         }
 
         git_merge_file_result_free(&result);
@@ -61,4 +69,4 @@ namespace merge
 
         return success;
     }
-} // namespace MergeLib
+} // namespace merge
