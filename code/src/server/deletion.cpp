@@ -16,210 +16,248 @@ using json = nlohmann::json;
 // server config file
 const std::string server_config_file = "server_config.json";
 
-class MetadataServer {
+class MetadataServer
+{
 private:
     httplib::Server server;
     std::vector<std::string> blockServers;
     std::string notificationServerUrl;
     std::string selfUrl; // URL of this metadata server for callback
     httplib::Client notificationClient;
-    
+
     std::mutex pendingMutex;
     std::map<std::string, json> pendingFileDeletions;
     std::map<std::string, json> pendingDirectoryDeletions;
-    
-    json getDirectoryMetadata(const std::string& dirPath) {
+
+    json getDirectoryMetadata(const std::string &dirPath)
+    {
         Response resp = get(blockServers, dirPath);
-        if (!resp.success) {
+        if (!resp.success)
+        {
             return nullptr;
         }
-        
-        try {
+
+        try
+        {
             return json::parse(resp.value);
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception &e)
+        {
             std::cerr << "Error parsing metadata: " << e.what() << std::endl;
             return nullptr;
         }
     }
-    
-    bool updateDirectoryMetadata(const std::string& dirPath, const json& metadata) {
+
+    bool updateDirectoryMetadata(const std::string &dirPath, const json &metadata)
+    {
         Response resp = set(blockServers, dirPath, metadata.dump());
         return resp.success;
     }
-    
-    bool deleteDirectoryMetadata(const std::string& dirPath) {
+
+    bool deleteDirectoryMetadata(const std::string &dirPath)
+    {
         Response resp = del(blockServers, dirPath);
         return resp.success;
     }
-    
-    bool sendNotification(const std::string& userID, const std::string& type, 
-                          const json& data, bool waitForConfirmation = true) {
+
+    bool sendNotification(const std::string &userID, const std::string &type,
+                          const json &data, bool waitForConfirmation = true)
+    {
         json notification = {
             {"userID", userID},
             {"type", type},
-            {"data", data}
-        };
-        
-        if (waitForConfirmation) {
+            {"data", data}};
+
+        if (waitForConfirmation)
+        {
             notification["callback"] = selfUrl + "/notify-confirmation";
         }
-        
+
         auto res = notificationClient.Post("/notify", notification.dump(), "application/json");
         return res && res->status == 200;
     }
-    
-    bool updateParentDirectory(const std::string& dirPath, const std::string& dirName) {
+
+    bool updateParentDirectory(const std::string &dirPath, const std::string &dirName)
+    {
         // Extract parent path
         size_t lastSlash = dirPath.find_last_of('/');
-        if (lastSlash == std::string::npos) {
+        if (lastSlash == std::string::npos)
+        {
             return false;
         }
-        
+
         std::string parentPath = dirPath.substr(0, lastSlash);
-        if (parentPath.empty()) {
+        if (parentPath.empty())
+        {
             parentPath = "/";
         }
-        
+
         // Get parent metadata
         json parentMetadata = getDirectoryMetadata(parentPath);
-        if (parentMetadata.is_null()) {
+        if (parentMetadata.is_null())
+        {
             return false;
         }
-        
+
         // Remove subdirectory from parent
-        if (parentMetadata.contains("subdirectories") && 
-            parentMetadata["subdirectories"].contains(dirName)) {
+        if (parentMetadata.contains("subdirectories") &&
+            parentMetadata["subdirectories"].contains(dirName))
+        {
             parentMetadata["subdirectories"].erase(dirName);
-            
+
             // Update parent metadata
             return updateDirectoryMetadata(parentPath, parentMetadata);
         }
-        
+
         return false;
     }
-    
+
     // Complete the directory deletion process
-    bool completeDirectoryDeletion(const std::string& dirPath) {
+    bool completeDirectoryDeletion(const std::string &dirPath)
+    {
         std::unique_lock<std::mutex> lock(pendingMutex);
-        
-        if (!pendingDirectoryDeletions.count(dirPath)) {
+
+        if (!pendingDirectoryDeletions.count(dirPath))
+        {
             return false;
         }
-        
+
         json deletionInfo = pendingDirectoryDeletions[dirPath];
         std::string dirName = deletionInfo["dirName"];
-        
+
         // Delete directory metadata
-        if (!deleteDirectoryMetadata(dirPath)) {
+        if (!deleteDirectoryMetadata(dirPath))
+        {
             std::cerr << "Failed to delete directory metadata: " << dirPath << std::endl;
             return false;
         }
-        
+
         // Update parent directory
-        if (!updateParentDirectory(dirPath, dirName)) {
+        if (!updateParentDirectory(dirPath, dirName))
+        {
             std::cerr << "Failed to update parent directory for: " << dirPath << std::endl;
             return false;
         }
-        
+
         // Remove from pending deletions
         pendingDirectoryDeletions.erase(dirPath);
         return true;
     }
-    
+
     // Complete file deletion after notification confirmation
-    bool completeFileDeletion(const std::string& filePath) {
+    bool completeFileDeletion(const std::string &filePath)
+    {
         std::unique_lock<std::mutex> lock(pendingMutex);
-        
-        if (!pendingFileDeletions.count(filePath)) {
+
+        if (!pendingFileDeletions.count(filePath))
+        {
             return false;
         }
-        
+
         json deletionInfo = pendingFileDeletions[filePath];
         std::string userID = deletionInfo["userID"];
         std::string parentPath = deletionInfo["parentPath"];
         std::string fileName = deletionInfo["fileName"];
         json fileMetadata = deletionInfo["metadata"];
-        
+
         // Get parent directory metadata
         Response parentResp = get(blockServers, parentPath);
-        if (!parentResp.success) {
+        if (!parentResp.success)
+        {
             std::cerr << "Parent directory not found: " << parentPath << std::endl;
             return false;
         }
-        
+
         json parentMetadata;
-        try {
+        try
+        {
             parentMetadata = json::parse(parentResp.value);
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception &e)
+        {
             std::cerr << "Error parsing parent metadata: " << e.what() << std::endl;
             return false;
         }
-        
+
         // Delete file chunks from block servers
-        if (fileMetadata.contains("chunks")) {
-            for (const auto& chunk : fileMetadata["chunks"]) {
+        if (fileMetadata.contains("chunks"))
+        {
+            for (const auto &chunk : fileMetadata["chunks"])
+            {
                 std::string chunkKey = chunk.get<std::string>();
-                
+
                 // Delete chunk data
                 Response delChunkResp = del(blockServers, chunkKey);
-                if (!delChunkResp.success) {
+                if (!delChunkResp.success)
+                {
                     std::cerr << "Failed to delete chunk: " << chunkKey << std::endl;
                     // Continue with other chunks even if one fails
                 }
-                
+
                 // Delete chunk metadata
                 std::string chunkMetadataKey = chunkKey + ".metadata";
                 Response delChunkMetaResp = del(blockServers, chunkMetadataKey);
-                if (!delChunkMetaResp.success) {
+                if (!delChunkMetaResp.success)
+                {
                     std::cerr << "Failed to delete chunk metadata: " << chunkMetadataKey << std::endl;
                     // Continue with other chunks even if one fails
                 }
             }
         }
-        
+
         // Update parent directory metadata to remove the file
-        if (parentMetadata.contains("files")) {
-            if (parentMetadata["files"].contains(fileName)) {
+        if (parentMetadata.contains("files"))
+        {
+            if (parentMetadata["files"].contains(fileName))
+            {
                 parentMetadata["files"].erase(fileName);
-                
+
                 // Update parent metadata in block server
                 Response updateResp = set(blockServers, parentPath, parentMetadata.dump());
-                if (!updateResp.success) {
+                if (!updateResp.success)
+                {
                     std::cerr << "Failed to update parent directory metadata" << std::endl;
                     return false;
                 }
-            } else {
+            }
+            else
+            {
                 std::cerr << "File not found in parent directory: " << fileName << std::endl;
                 return false;
             }
-        } else {
+        }
+        else
+        {
             std::cerr << "Parent directory has no files entry" << std::endl;
             return false;
         }
-        
+
         // Delete file metadata from block server
         Response delMetaResp = del(blockServers, filePath);
-        if (!delMetaResp.success) {
+        if (!delMetaResp.success)
+        {
             std::cerr << "Failed to delete file metadata" << std::endl;
             return false;
         }
-        
+
         // Remove from pending deletions
         pendingFileDeletions.erase(filePath);
-        
+
         return true;
     }
-    
+
 public:
-    MetadataServer(int port, const std::vector<std::string>& blockServers, 
-                  const std::string& notificationServerUrl, const std::string& selfUrl) 
-        : blockServers(blockServers), 
+    MetadataServer(int port, const std::vector<std::string> &blockServers,
+                   const std::string &notificationServerUrl, const std::string &selfUrl)
+        : blockServers(blockServers),
           notificationServerUrl(notificationServerUrl),
           selfUrl(selfUrl),
-          notificationClient(notificationServerUrl) {
-        
+          notificationClient(notificationServerUrl)
+    {
+
         // Handle directory deletion request
-        server.Delete("/dir", [this](const httplib::Request& req, httplib::Response& res) {
+        server.Delete("/dir", [this](const httplib::Request &req, httplib::Response &res)
+                      {
             if (!req.has_param("path") || !req.has_param("userID")) {
                 res.status = 400;
                 res.set_content("Missing path or userID parameter", "text/plain");
@@ -295,11 +333,11 @@ public:
                     res.status = 500;
                     res.set_content("Failed to send notification", "text/plain");
                 }
-            }
-        });
-        
+            } });
+
         // Handle file deletion request
-        server.Delete("/file", [this](const httplib::Request& req, httplib::Response& res) {
+        server.Delete("/file", [this](const httplib::Request &req, httplib::Response &res)
+                      {
             if (!req.has_param("path") || !req.has_param("userID")) {
                 res.status = 400;
                 res.set_content("Missing path or userID parameter", "text/plain");
@@ -379,11 +417,11 @@ public:
                 
                 res.status = 500;
                 res.set_content("Failed to send notification", "text/plain");
-            }
-        });
-        
+            } });
+
         // Handle notification confirmation
-        server.Post("/notify-confirmation", [this](const httplib::Request& req, httplib::Response& res) {
+        server.Post("/notify-confirmation", [this](const httplib::Request &req, httplib::Response &res)
+                    {
             try {
                 json confirmation = json::parse(req.body);
                 
@@ -420,29 +458,31 @@ public:
             } catch (const std::exception& e) {
                 res.status = 400;
                 res.set_content(std::string("Error: ") + e.what(), "text/plain");
-            }
-        });
-        
+            } });
+
         std::cout << "Starting metadata server on port " << port << std::endl;
         server.listen("0.0.0.0", port);
     }
 };
 
-int main(int argc, char* argv[]) {
-    if (argc < 5) {
+int main(int argc, char *argv[])
+{
+    if (argc < 5)
+    {
         std::cerr << "Usage: " << argv[0] << " <port> <self_url> <notification_server_url> <block_server1> [block_server2] ..." << std::endl;
         return 1;
     }
-    
+
     int port = std::stoi(argv[1]);
     std::string selfUrl = argv[2];
     std::string notificationServerUrl = argv[3];
-    
+
     std::vector<std::string> blockServers;
-    for (int i = 4; i < argc; i++) {
+    for (int i = 4; i < argc; i++)
+    {
         blockServers.push_back(argv[i]);
     }
-    
+
     MetadataServer server(port, blockServers, notificationServerUrl, selfUrl);
     return 0;
 }

@@ -26,11 +26,10 @@ int main(int argc, char *argv[])
     ifs >> config;
 
     auto port = config.value("server_port", 8080);
-    auto ip = config.value("server_ip","127.0.0.1");
+    auto ip = config.value("server_ip", "127.0.0.1");
 
     auto user_id = argv[1];
 
-    
     // Create and start the notification client
     NotificationClient client(ip, port, user_id, notification_queue, queue_mutex);
     client.start();

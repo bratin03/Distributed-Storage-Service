@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         server.run();
 
         // For demonstration, simulate an external event that broadcasts a notification after 5 seconds.
-        std::thread notifier([&server, &user_id,&ip]()
+        std::thread notifier([&server, &user_id, &ip]()
                              {
             int count = 1 ; 
             while(count++ ) {

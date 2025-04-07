@@ -11,15 +11,15 @@
 #include <thread>
 #include <atomic>
 
-class NotificationClient {
+class NotificationClient
+{
 public:
     NotificationClient(
-        const std::string& server_ip,
+        const std::string &server_ip,
         int server_port,
-        const std::string& user_id,
-        std::queue<nlohmann::json>& notification_queue,
-        std::mutex& queue_mutex
-    );
+        const std::string &user_id,
+        std::queue<nlohmann::json> &notification_queue,
+        std::mutex &queue_mutex);
 
     ~NotificationClient();
 
@@ -33,8 +33,8 @@ private:
     std::string server_ip_;
     int server_port_;
     std::string user_id_;
-    std::queue<nlohmann::json>& notification_queue_;
-    std::mutex& queue_mutex_;
+    std::queue<nlohmann::json> &notification_queue_;
+    std::mutex &queue_mutex_;
     std::atomic<bool> running_;
     std::thread client_thread_;
 
