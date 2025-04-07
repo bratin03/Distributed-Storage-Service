@@ -274,7 +274,7 @@ namespace Database_handler{
     }
 
 
-    std::vector<std::string> &select_server_group(const std::string &key)
+    std::vector<std::string> &select_metastorage_group(const std::string &key)
     {
         static std::hash<std::string> hasher;
         size_t idx = hasher(key) % server_groups.size();
@@ -291,7 +291,7 @@ namespace Database_handler{
 
     distributed_KV::Response get_directory_metadata(const std::string &key)
     {
-        auto &servers = select_server_group(key);
+        auto &servers = select_metastorage_group(key);
         distributed_KV::Response res = distributed_KV::get(servers, key);
 
         if (!res.success)
@@ -306,12 +306,12 @@ namespace Database_handler{
     distributed_KV::Response set_directory_metadata(const std::string &key, const json &metadata)
     {
         std::string value = metadata.dump();
-        return distributed_KV::set(select_server_group(key), key, value);
+        return distributed_KV::set(select_metastorage_group(key), key, value);
     }
 
     distributed_KV::Response delete_directory_metadata(const std::string &key)
     {
-        return distributed_KV::del(select_server_group(key), key);
+        return distributed_KV::del(select_metastorage_group(key), key);
     }
 
 }
