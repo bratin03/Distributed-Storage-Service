@@ -11,7 +11,7 @@ echo "👉 URL: $SERVER_URL"
 echo "👤 User: $USER_ID"
 
 # Prepare JSON payload
-JSON_PAYLOAD=$(cat <<EOF
+JSON_PAYLOAD=$(cat << EOF
 {
     "userID": "$USER_ID",
     "password": "$PASSWORD"
