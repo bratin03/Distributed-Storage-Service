@@ -24,21 +24,30 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #pragma once
+
+// Internal modules
+#include "logger/Mylogger.h"
+#include "./initiation/initiation.hpp"
+#include "./authentication/authentication.hpp"
+#include "../notification_server/notification_server.hpp"
+
+// Third-party libraries
 #include "../../utils/libraries/cpp-httplib/httplib.h"
 #include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
 #include "../../utils/Distributed_KV/client_lib/kv.hpp"
-#include "../notification_server/notification_server.hpp"
-#include "./logger/Mylogger.h"
-#include <nlohmann/json.hpp> // JSON parsing
+
+// JSON and standard
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <mutex>
-#include <bits/stdc++.h>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio.hpp>
-#include <iostream>
+#include <bits/stdc++.h>
+
+
 
 // Make sure to include these namespaces or qualify appropriately.
 namespace beast = boost::beast;     // from <boost/beast.hpp>
@@ -47,259 +56,22 @@ namespace asio  = boost::asio;        // from <boost/asio.hpp>
 using tcp       = asio::ip::tcp;
 using json = nlohmann::json;
 
-// server config file
-const std::string server_config_file = "server_config.json";
-const std::string public_key_file = "public.pem";  // read this from server config file
-const std::string server_ip = "127.0.0.3"; // read this from server config file
-const int server_port = 30000; // read this from server config file
-
-// Simulated metadata store
-std::vector<std::string> metadata_servers;
-std::vector<std::string> block_servers;
-std::vector<std::string> notification_servers;
-std::mutex server_lock;
-std::mutex metadata_lock;
-
-// Public key for JWT verification
-// Load RSA Public Key
-namespace Initiation
-{
-
-    std::string loadKey(const std::string &filename)
-    {
-        try
-        {
-            std::ifstream file(filename, std::ios::in);
-            if (!file.is_open())
-            {
-                MyLogger::error("Failed to open key file: " + filename);
-                throw std::runtime_error("Failed to open key file");
-            }
-            MyLogger::info("Loaded public key from file: " + filename);
-            return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-        }
-        catch (const std::exception &e)
-        {
-            MyLogger::error("Exception in loadKey: " + std::string(e.what()));
-            throw;
-        }
-    }
-
-    // Load Public Key
-
-    // Function to load servers from JSON config file
-    void load_server_config(const std::string &filename)
-    {
-        try
-        {
-            std::ifstream file(filename);
-            if (!file.is_open())
-            {
-                MyLogger::error("Failed to open server config file: " + filename);
-                throw std::runtime_error("Failed to open server config file");
-            }
-
-            nlohmann::json config;
-            file >> config;
-
-            std::lock_guard<std::mutex> lock(server_lock);
-            metadata_servers = config["servers"].get<std::vector<std::string>>();
-            block_servers = config["block_servers"].get<std::vector<std::string>>();
-            notification_servers = config["notification_servers"].get<std::vector<std::string>>();
-            MyLogger::info("Loaded " + std::to_string(metadata_servers.size()) + " servers from config file");
-        }
-        catch (const std::exception &e)
-        {
-            MyLogger::error("Exception in load_server_config: " + std::string(e.what()));
-        }
-    }
-
-}
-
-namespace Authentication
-{
-
-    const std::string PUBLIC_KEY = Initiation::loadKey(public_key_file);
-
-    std::optional<std::string> verify_jwt(const std::string &token)
-    {
-        // Function to verify JWT token and extract userID
-        // Ensure the token has three parts
-        MyLogger::debug("Inside verify_jwt");
-        if (token.empty())
-        {
-            MyLogger::error("JWT Format Error: Empty token");
-            return std::nullopt;
-        }
-
-        if (std::count(token.begin(), token.end(), '.') != 2)
-        {
-            MyLogger::error("JWT Format Error: Incorrect token structure");
-            return std::nullopt;
-        }
-
-        MyLogger::debug("JWT Format Correct");
-
-        try
-        {
-            auto decoded = jwt::decode(token);
-            auto verifier = jwt::verify()
-                                .allow_algorithm(jwt::algorithm::rs256(PUBLIC_KEY))
-                                .with_issuer("auth-server");
-
-            verifier.verify(decoded);
-            return decoded.get_payload_claim("userID").as_string();
-        }
-        catch (const std::system_error &e)
-        { // Catching system_error from jwt-cpp
-            MyLogger::error("JWT Verification Failed: " + std::string(e.what()));
-            return std::nullopt;
-        }
-        catch (const std::exception &e)
-        { // Catching general exceptions
-            MyLogger::error("JWT Verification Failed: " + std::string(e.what()));
-            return std::nullopt;
-        }
-    }
-
-    // Middleware to handle authentication
-    bool authenticate_request(const httplib::Request &req, httplib::Response &res, std::string &userID)
-    {
-
-        MyLogger::debug("Inside authenticate_request");
-
-        if (!req.has_header("Authorization"))
-        {
-            res.status = 401;
-            res.set_content(R"({"error": "Missing authentication token"})", "application/json");
-            MyLogger::error("Authentication failed: Missing token");
-            return false;
-        }
-        MyLogger::debug("Authorization header found");
-
-        std::string token = req.get_header_value("Authorization");
-
-        if (token.rfind("Bearer ", 0) == 0)
-        {
-            MyLogger::debug("Bearer found");
-            token = token.substr(7); // Remove "Bearer " prefix
-        }
-        MyLogger::debug("Token trimed: " + token);
-
-        auto verified_user = verify_jwt(token);
-        if (!verified_user)
-        {
-            res.status = 403;
-            res.set_content(R"({"error": "Invalid token"})", "application/json");
-            MyLogger::error("Authentication failed: Invalid token");
-            return false;
-        }
-
-        userID = *verified_user;
-        MyLogger::info("Authenticated user: " + userID);
-        return true;
-    }
-
-}
 
 namespace Database_handler
 {
 
-    std::vector<std::vector<std::string>> server_groups;  // server groups for metadata storage
-    inline std::vector<json> blockserver_lists;  // server groups for block storage required for file storage
-    const std::string database_server_config_file = "meta_server_config.json"; // metadatastorage server config file
-    const std::string block_server_config_file = "block_server_config.json"; // block server config file
-
-    bool load_server_config(const std::string &filename, std::vector<std::vector<std::string>> &server_groups) // metadatastorage server loader
-    {
-        std::ifstream file(filename);
-        if (!file.is_open())
-        {
-            MyLogger::error("Failed to open server config file: " + filename);
-            return false;
-        }
-
-        try
-        {
-            nlohmann::json config_json;
-            file >> config_json;
-
-            for (const auto &entry : config_json.items())
-            {
-                const auto &server_list = entry.value();
-                if (!server_list.is_array())
-                {
-                    MyLogger::warning("Skipping invalid entry in server config: " + entry.key());
-                    continue;
-                }
-
-                std::vector<std::string> group;
-                for (const auto &endpoint : server_list)
-                {
-                    if (endpoint.is_string())
-                    {
-                        group.push_back(endpoint.get<std::string>());
-                    }
-                }
-                server_groups.push_back(std::move(group));
-            }
-
-            MyLogger::info("Loaded " + std::to_string(server_groups.size()) + " server groups from config.");
-            return true;
-        }
-        catch (const std::exception &e)
-        {
-            MyLogger::error("Failed to parse server config JSON: " + std::string(e.what()));
-            return false;
-        }
-    }
-
-    inline void load_blockserver_config(const std::string &filepath = block_server_config_file) // block server config loader
-    {
-        std::ifstream file(filepath);
-        if (!file.is_open())
-        {
-            MyLogger::error("Could not open blockserver_config.json");
-            return;
-        }
-
-        json config_json;
-        try
-        {
-            file >> config_json;
-        }
-        catch (const std::exception &e)
-        {
-            MyLogger::error("Failed to parse blockserver_config.json: " + std::string(e.what()));
-            return;
-        }
-
-        blockserver_lists.clear();
-        for (auto &[key, value] : config_json.items())
-        {
-            if (!value.is_array())
-            {
-                MyLogger::warning("Skipping malformed list in blockserver_config.json: " + key);
-                continue;
-            }
-            blockserver_lists.push_back(value);
-        }
-
-        MyLogger::info("Loaded blockserver config with " + std::to_string(blockserver_lists.size()) + " server groups.");
-    }
-
     std::vector<std::string> &select_metastorage_group(const std::string &key)
     {
         static std::hash<std::string> hasher;
-        size_t idx = hasher(key) % server_groups.size();
-        return server_groups[idx];
+        size_t idx = hasher(key) % Initiation::metastorage_groups.size();
+        return Initiation::metastorage_groups[idx];
     }
 
     json &select_block_server_group(const std::string &key)
     {
         static std::hash<std::string> hasher;
-        size_t idx = hasher(key) % blockserver_lists.size();
-        return blockserver_lists[idx];
+        size_t idx = hasher(key) % Initiation::blockserver_lists.size();
+        return Initiation::blockserver_lists[idx];
     }
 
     distributed_KV::Response get_directory_metadata(const std::string &key)
@@ -333,13 +105,13 @@ namespace Database_handler
 void select_round_robin_servers(std::vector<std::string> &selected, int count = 3)
 {
     static size_t index = 0;
-    std::lock_guard<std::mutex> lock(server_lock);
+    // std::lock_guard<std::mutex> lock(server_lock);
 
     for (int i = 0; i < count; i++)
     {
-        selected.push_back(metadata_servers[(index + i) % metadata_servers.size()]);
+        selected.push_back(Initiation::metadata_servers[(index + i) % Initiation::metadata_servers.size()]);
     }
-    index = (index + count) % metadata_servers.size();
+    index = (index + count) % Initiation::metadata_servers.size();
 }
 
 void create_directory(const httplib::Request &req, httplib::Response &res)
@@ -563,7 +335,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         }
 
         // Choose servers to assign the file to
-        std::vector<std::string> chosen_servers(metadata_servers.begin(), metadata_servers.begin() + 3);
+        std::vector<std::string> chosen_servers(Initiation::metadata_servers.begin(), Initiation::metadata_servers.begin() + 3);
 
         json file_meta = {
             {"parent_dir", parent_dir},
@@ -752,10 +524,7 @@ int main()
 
     httplib::Server svr;
 
-    Initiation::load_server_config(server_config_file);
-    Database_handler::load_server_config(Database_handler::database_server_config_file, Database_handler::server_groups);
-    Database_handler::load_blockserver_config(Database_handler::block_server_config_file);
-
+    Initiation::initialize("config/config.json");
     // Routes
     svr.Post("/create-directory", create_directory);
     // svr.Get("/list-directory/(.*)", list_directory);
@@ -765,7 +534,7 @@ int main()
     // Start server
 
     MyLogger::info("Server started");
-    svr.listen(server_ip, server_port);
+    svr.listen(Initiation::server_ip, Initiation::server_port);
 }
 
 

@@ -8,23 +8,12 @@ AUTHSERVER_TARGET = auth_server
 NOFYSERVER_TARGET = notify_server
 
 # Source files
-METASERVER_SRC = metadata_server_L1.cpp
-AUTHSERVER_SRC = authentication_server.cpp
-NOFYSERVER_SRC = notification_server.cpp
-
-
+METASERVER_SRC = metadata_server_L1.cpp authentication/authentication.cpp initiation/initiation.cpp
 
 # Compile MetaServer
 $(METASERVER_TARGET): $(METASERVER_SRC)
 	$(CXX) $(CXXFLAGS) -o $(METASERVER_TARGET) $(METASERVER_SRC) $(LDFLAGS)
 
-# Compile AuthServer
-$(AUTHSERVER_TARGET): $(AUTHSERVER_SRC)
-	$(CXX) $(CXXFLAGS) -o $(AUTHSERVER_TARGET) $(AUTHSERVER_SRC) $(LDFLAGS)
-
-# Compile Notification
-$(NOFYSERVER_TARGET): $(NOFYSERVER_SRC)
-	$(CXX) $(CXXFLAGS) -o $(NOFYSERVER_TARGET) $(NOFYSERVER_SRC) $(LDFLAGS)
 
 # Clean all compiled files
 clean:
