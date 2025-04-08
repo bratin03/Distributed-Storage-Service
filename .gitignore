@@ -79,3 +79,9 @@ testdb/
 # log files
 *.log
 *.wal
+
+# Virtual environments
+.venv/
+env/
+venv/
+myenv/
