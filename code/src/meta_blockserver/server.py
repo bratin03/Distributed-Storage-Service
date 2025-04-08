@@ -32,6 +32,8 @@ def value_put():
         # request handle, reply is a dictionary
         result = n.handle_put(payload)
         if result:
+            print("-----------------Result: \n")
+            sys.stdout.flush()
             reply = {"code": "success"}
     elif n.status == FOLLOWER:
         # redirect request

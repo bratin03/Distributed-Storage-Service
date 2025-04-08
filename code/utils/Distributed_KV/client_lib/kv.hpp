@@ -168,6 +168,7 @@ namespace distributed_KV
      */
     Response get(const std::vector<std::string> &servers, const std::string &key)
     {
+        printf("Getting key: %s\n", key.c_str());
         nlohmann::json payload = {{"key", key}};
         nlohmann::json message = {{"type", "get"}, {"payload", payload}};
         Response res = tryServers(servers, "get", message);
@@ -220,6 +221,7 @@ namespace distributed_KV
      */
     Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &value)
     {
+        printf("Setting key: %s with value: %s\n", key.c_str(), value.c_str());
         nlohmann::json payload = {{"key", key}, {"value", value}};
         nlohmann::json message = {{"type", "put"}, {"payload", payload}};
         return tryServers(servers, "put", message);

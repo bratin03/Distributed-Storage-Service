@@ -17,7 +17,7 @@ namespace Initiation
     extern std::vector<std::string> metadata_servers;
     extern std::vector<std::string> notification_servers;
     extern std::vector<std::vector<std::string>> metastorage_groups;
-    inline std::vector<json> blockserver_lists = {};
+    extern std::vector<json> blockserver_lists;
 
     void initialize(const std::string& server_config_path);
 

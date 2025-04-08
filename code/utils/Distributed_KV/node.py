@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 import utils
@@ -185,6 +186,7 @@ class Node():
             # handle client request
             if "action" in msg:
                 print("received action", msg)
+                sys.stdout.flush()
                 action = msg["action"]
                 # logging after first msg
                 if action == "log":

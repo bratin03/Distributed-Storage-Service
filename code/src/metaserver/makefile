@@ -1,9 +1,9 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -I../../utils/libraries/cpp-httplib -I../../utils/libraries/jwt-cpp/include -I/usr/include/nlohmann -I./logger
-LDFLAGS = -L/usr/lib -lssl -lcrypto -lpthread -lhiredis -lcurl
+LDFLAGS = -L/usr/lib -lssl -lcrypto -lpthread -lhiredis -lcurl -g -pg 
 
 # Targets
-METASERVER_TARGET = metaserver
+METASERVER_TARGET = metaserver.out
 AUTHSERVER_TARGET = auth_server
 NOFYSERVER_TARGET = notify_server
 

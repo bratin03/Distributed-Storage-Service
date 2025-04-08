@@ -47,15 +47,12 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
 #include <boost/asio.hpp>
 #include <bits/stdc++.h>
 
-
-
 // Make sure to include these namespaces or qualify appropriately.
-namespace beast = boost::beast;     // from <boost/beast.hpp>
-namespace http  = beast::http;        // from <boost/beast/http.hpp>
-namespace asio  = boost::asio;        // from <boost/asio.hpp>
-using tcp       = asio::ip::tcp;
+namespace beast = boost::beast; // from <boost/beast.hpp>
+namespace http = beast::http;   // from <boost/beast/http.hpp>
+namespace asio = boost::asio;   // from <boost/asio.hpp>
+using tcp = asio::ip::tcp;
 using json = nlohmann::json;
-
 
 namespace Database_handler
 {
@@ -288,7 +285,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         std::string file_path = body_json["path"];
         std::string key = userID + ":" + file_path;
-
         size_t last_slash = file_path.find_last_of('/');
         if (last_slash == std::string::npos)
         {
@@ -304,6 +300,14 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         // Fetch parent directory metadata
         auto parent_res = Database_handler::get_directory_metadata(parent_key);
+        /*
+         struct Response
+            {
+                std::string value; // Contains the response payload if applicable.
+                std::string err;   // Contains error message if any.
+                bool success;
+            };
+        */
         if (!parent_res.success)
         {
             res.status = 404;
@@ -325,6 +329,35 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        // Debug print the metadata
+        MyLogger::debug("parent metadata: " + parent_metadata.dump());
+
+        // Ensure that 'files' is a JSON object
+        if (!parent_metadata.contains("files") || !parent_metadata["files"].is_object())
+        {
+            if (parent_metadata.contains("files") && parent_metadata["files"].is_string())
+            {
+                // If 'files' is a string, try to parse it as JSON.
+                try
+                {
+                    parent_metadata["files"] = json::parse(parent_metadata["files"].get<std::string>());
+                }
+                catch (const std::exception &e)
+                {
+                    MyLogger::error("Failed to parse 'files' from parent metadata: " + std::string(e.what()));
+                    res.status = 500;
+                    res.set_content(R"({"error": "Invalid parent metadata format for files"})", "application/json");
+                    return;
+                }
+            }
+            else
+            {
+                // If not present or of a different type, reinitialize it to an empty object.
+                MyLogger::warning("Parent metadata 'files' key is not an object. Reinitializing.");
+                parent_metadata["files"] = json::object();
+            }
+        }
+
         // Check for duplicate file
         if (parent_metadata["files"].contains(filename))
         {
@@ -334,8 +367,10 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
-        // Choose servers to assign the file to
-        std::vector<std::string> chosen_servers(Initiation::metadata_servers.begin(), Initiation::metadata_servers.begin() + 3);
+        MyLogger::info("Creating file: " + key);
+
+        std::vector<std::string> chosen_servers;
+        select_round_robin_servers(chosen_servers);
 
         json file_meta = {
             {"parent_dir", parent_dir},
@@ -450,8 +485,6 @@ void update_file(const httplib::Request &req, httplib::Response &res)
     }
 }
 
-
-
 // // // Example function to send notification via HTTP POST
 // // void send_notification(nlohmann::json &message) {
 // //     // Iterate over all notification server entries
@@ -505,11 +538,10 @@ void update_file(const httplib::Request &req, httplib::Response &res)
 // //     }
 // // }
 
-
 // // Function to handle block server confirmation
 // // it will send the confirmation to the notification server
 // void block_server_confirmation(const httplib::Request &req, httplib::Response &res)
-// {   
+// {
 
 //     MyLogger::info("Received block server confirmation request");
 //     json message = {
@@ -524,11 +556,11 @@ int main()
 
     httplib::Server svr;
 
-    Initiation::initialize("config/config.json");
+    Initiation::initialize("config/server_config.json");
     // Routes
     svr.Post("/create-directory", create_directory);
     // svr.Get("/list-directory/(.*)", list_directory);
-    // svr.Post("/create-file/(.*)", create_file);
+    svr.Post("/create-file", create_file);
     // svr.Put("/confirmation/(.*)", block_server_confirmation);
 
     // Start server
@@ -536,7 +568,6 @@ int main()
     MyLogger::info("Server started");
     svr.listen(Initiation::server_ip, Initiation::server_port);
 }
-
 
 // api to get servers
 
