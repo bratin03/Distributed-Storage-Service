@@ -1,5 +1,5 @@
 #include "notification_client.hpp"
-#include "../logger/Mylogger.h"
+#include "logger/Mylogger.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -61,7 +61,7 @@ void NotificationClient::run()
         {
             MyLogger::error("Notification client error: " + std::string(e.what()));
             // Add a small delay before reconnecting
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::seconds(1000));
         }
     }
 }

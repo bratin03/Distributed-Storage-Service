@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
         }
 
         // Sleep a bit to avoid busy waiting
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
     return 0;
