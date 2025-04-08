@@ -1,4 +1,6 @@
 {
     "signup_ip": "127.0.0.1",
-    "signup_port": 8080,
+    "signup_port": 10000,
+    "login_ip": "127.0.0.1",
+    "login_port": 15000
 }

@@ -27,13 +27,25 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
 #include "../../utils/libraries/cpp-httplib/httplib.h"
 #include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
 #include "../../utils/Distributed_KV/client_lib/kv.hpp"
+#include "../notification_server/notification_server.hpp"
 #include "./logger/Mylogger.h"
 #include <nlohmann/json.hpp> // JSON parsing
 #include <iostream>
 #include <unordered_map>
 #include <mutex>
 #include <bits/stdc++.h>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/version.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio.hpp>
+#include <iostream>
 
+// Make sure to include these namespaces or qualify appropriately.
+namespace beast = boost::beast;     // from <boost/beast.hpp>
+namespace http  = beast::http;        // from <boost/beast/http.hpp>
+namespace asio  = boost::asio;        // from <boost/asio.hpp>
+using tcp       = asio::ip::tcp;
 using json = nlohmann::json;
 
 // server config file
@@ -44,6 +56,8 @@ const std::string public_key_file = "public.pem";
 std::unordered_map<std::string, json> directory_metadata;
 std::unordered_map<std::string, json> file_metadata;
 std::vector<std::string> metadata_servers;
+std::vector<std::string> block_servers;
+std::vector<std::string> notification_servers;
 std::mutex server_lock;
 std::mutex metadata_lock;
 
@@ -91,7 +105,8 @@ namespace Initiation
 
             std::lock_guard<std::mutex> lock(server_lock);
             metadata_servers = config["servers"].get<std::vector<std::string>>();
-
+            block_servers = config["block_servers"].get<std::vector<std::string>>();
+            notification_servers = config["notification_servers"].get<std::vector<std::string>>();
             MyLogger::info("Loaded " + std::to_string(metadata_servers.size()) + " servers from config file");
         }
         catch (const std::exception &e)
@@ -273,7 +288,6 @@ namespace Database_handler
 
         MyLogger::info("Loaded blockserver config with " + std::to_string(blockserver_lists.size()) + " server groups.");
     }
-
 
     std::vector<std::string> &select_metastorage_group(const std::string &key)
     {
@@ -685,6 +699,73 @@ void initialize_root_directories()
     }
 }
 
+// Example function to send notification via HTTP POST
+void send_notification(nlohmann::json &message) {
+    // Iterate over all notification server entries
+    for (const auto &server : notification_servers) {
+        try {
+            // Assuming each 'server' has members "ip" and "port".
+            std::string server_ip = server.ip; // or server["ip"] if using json
+            unsigned short server_port = server.port; // or static_cast<unsigned short>(server["port"])
+
+            // Create an io_context for this connection.
+            asio::io_context ioc;
+
+            // Resolve the server address and port.
+            tcp::resolver resolver(ioc);
+            auto const results = resolver.resolve(server_ip, std::to_string(server_port));
+
+            // Create a TCP stream using Boost.Beast.
+            beast::tcp_stream stream(ioc);
+
+            // Establish a connection using one of the endpoints.
+            stream.connect(results);
+
+            // Prepare the HTTP POST request to the "/broadcast" endpoint.
+            http::request<http::string_body> req{http::verb::post, "/broadcast", 11};
+            req.set(http::field::host, server_ip);
+            req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+            req.set(http::field::content_type, "application/json");
+            req.body() = message.dump();
+            req.prepare_payload();
+
+            // Send the HTTP request to the server.
+            http::write(stream, req);
+
+            // Buffer for reading the response.
+            beast::flat_buffer buffer;
+            // Container for the response.
+            http::response<http::dynamic_body> res;
+            // Receive the HTTP response.
+            http::read(stream, buffer, res);
+            std::cout << "Response from " << server_ip << ": " << res << std::endl;
+
+            // Gracefully close the socket.
+            beast::error_code ec;
+            stream.socket().shutdown(tcp::socket::shutdown_both, ec);
+            if (ec && ec != beast::errc::not_connected) {
+                throw beast::system_error{ec};
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Error sending notification to server: " << e.what() << "\n";
+        }
+    }
+}
+
+
+// Function to handle block server confirmation
+// it will send the confirmation to the notification server
+void block_server_confirmation(const httplib::Request &req, httplib::Response &res)
+{   
+
+    MyLogger::info("Received block server confirmation request");
+    json message = {
+        {"type", "block_server_confirmation"}
+    };
+
+    send_notification(message);
+}
+
 int main()
 {
 
@@ -699,6 +780,7 @@ int main()
     svr.Post("/create-directory", create_directory);
     // svr.Get("/list-directory/(.*)", list_directory);
     // svr.Post("/create-file/(.*)", create_file);
+    svr.Put("/confirmation/(.*)", block_server_confirmation);
 
     // Start server
     MyLogger::info("Server started on http://localhost:8080");

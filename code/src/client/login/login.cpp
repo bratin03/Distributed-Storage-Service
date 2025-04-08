@@ -1,10 +1,24 @@
 #include "login.hpp"
+#include "load_config/load_config.hpp"
+
 namespace login
 {
     std::string signUpLoadBalancerip;
     unsigned short signUpLoadBalancerPort;
     std::string loginLoadBalancerip;
     unsigned short loginLoadBalancerPort;
+
+    const std::string server_info_config_path = "config/server_config.json";
+
+    void handle_server_info(json &server_info)
+    {
+        server_info = ConfigReader::load(server_info_config_path);
+        signUpLoadBalancerip = ConfigReader::get_config_string("si", server_info);
+        signUpLoadBalancerPort = ConfigReader::get_config_short("signUpLoadBalancerPort", server_info);
+        loginLoadBalancerip = ConfigReader::get_config_string("loginLoadBalancerip", server_info);
+        loginLoadBalancerPort = ConfigReader::get_config_short("loginLoadBalancerPort", server_info);
+    }
+
     void handle_user_info(int argc, char *argv[], json &user_info, std::string &username, std::string &password,
                           const std::string &user_info_config_path)
     {
@@ -42,6 +56,9 @@ namespace login
                 std::cout << "Failed to save user info" << std::endl;
                 exit(1);
             }
+
+
+
         }
         else
         {
