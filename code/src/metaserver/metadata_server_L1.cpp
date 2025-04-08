@@ -31,7 +31,6 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
 #include "./logger/Mylogger.h"
 #include <nlohmann/json.hpp> // JSON parsing
 #include <iostream>
-#include <unordered_map>
 #include <mutex>
 #include <bits/stdc++.h>
 #include <boost/beast/core.hpp>
@@ -50,11 +49,11 @@ using json = nlohmann::json;
 
 // server config file
 const std::string server_config_file = "server_config.json";
-const std::string public_key_file = "public.pem";
+const std::string public_key_file = "public.pem";  // read this from server config file
+const std::string server_ip = "127.0.0.1"; // read this from server config file
+const int server_port = 35000; // read this from server config file
 
 // Simulated metadata store
-std::unordered_map<std::string, json> directory_metadata;
-std::unordered_map<std::string, json> file_metadata;
 std::vector<std::string> metadata_servers;
 std::vector<std::string> block_servers;
 std::vector<std::string> notification_servers;
@@ -206,12 +205,12 @@ namespace Authentication
 namespace Database_handler
 {
 
-    std::vector<std::vector<std::string>> server_groups;
-    inline std::vector<json> blockserver_lists;
-    const std::string database_server_config_file = "database_server_config.json";
-    const std::string block_server_config_file = "block_server_config.json";
+    std::vector<std::vector<std::string>> server_groups;  // server groups for metadata storage
+    inline std::vector<json> blockserver_lists;  // server groups for block storage required for file storage
+    const std::string database_server_config_file = "meta_server_config.json"; // metadatastorage server config file
+    const std::string block_server_config_file = "block_server_config.json"; // block server config file
 
-    bool load_server_config(const std::string &filename, std::vector<std::vector<std::string>> &server_groups)
+    bool load_server_config(const std::string &filename, std::vector<std::vector<std::string>> &server_groups) // metadatastorage server loader
     {
         std::ifstream file(filename);
         if (!file.is_open())
@@ -255,7 +254,7 @@ namespace Database_handler
         }
     }
 
-    inline void load_blockserver_config(const std::string &filepath = block_server_config_file)
+    inline void load_blockserver_config(const std::string &filepath = block_server_config_file) // block server config loader
     {
         std::ifstream file(filepath);
         if (!file.is_open())
@@ -780,25 +779,17 @@ int main()
     svr.Post("/create-directory", create_directory);
     // svr.Get("/list-directory/(.*)", list_directory);
     // svr.Post("/create-file/(.*)", create_file);
-    svr.Put("/confirmation/(.*)", block_server_confirmation);
+    // svr.Put("/confirmation/(.*)", block_server_confirmation);
 
     // Start server
-    MyLogger::info("Server started on http://localhost:8080");
-    svr.listen("localhost", 8080);
+
+    MyLogger::info("Server started on http://" + server_ip + ":" + to_string(server_port));
+    svr.listen(server_ip, server_port);
 }
 
-// void heartbeat_handler(const Request &, Response &res) {
-//     res.set_content(R"({"status": "alive"})", "application/json");
-// }
 
 // api to get servers
 
-// api to update the file
-
-// confirm api
-
 // api to delete
-
-// first delete the files of the subdirectory then
 
 // check atomic locking of database that will be used
