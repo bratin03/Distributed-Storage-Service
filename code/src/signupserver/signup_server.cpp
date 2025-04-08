@@ -4,10 +4,10 @@
 #include <sstream>
 #include <nlohmann/json.hpp>
 #define CPPHTTPLIB_HEADER_ONLY
-#include "../../../utils/libraries/cpp-httplib/httplib.h"
+#include "../../utils/libraries/cpp-httplib/httplib.h"
 #include <hiredis/hiredis.h>
-#include "../logger/Mylogger.h"
-#include "../../../utils/Distributed_KV/client_lib/kv.hpp"
+#include "logger/Mylogger.h"
+#include "../../utils/Distributed_KV/client_lib/kv.hpp"
 
 // Global
 std::vector<std::vector<std::string>> blockserver_lists;

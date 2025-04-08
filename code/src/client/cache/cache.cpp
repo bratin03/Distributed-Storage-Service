@@ -3,90 +3,173 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
+#include <list>
 
-namespace cache {
+namespace cache
+{
 
-struct Cache::CacheEntry {
-    std::string value;
-    std::chrono::steady_clock::time_point expireTime;
-};
+    // The basic cached entry containing the value and its expiry time.
+    struct Cache::CacheEntry
+    {
+        std::string value;
+        std::chrono::steady_clock::time_point expireTime;
+    };
 
-class Cache::Impl {
-public:
-    Impl(std::chrono::milliseconds defaultTTL)
-        : defaultTTL_(defaultTTL), stopCleaner_(false) {
-        cleanerThread_ = std::thread(&Impl::cleaner, this);
-    }
+    class Cache::Impl
+    {
+    public:
+        Impl(std::chrono::milliseconds defaultTTL, std::size_t maxSize)
+            : defaultTTL_(defaultTTL), maxSize_(maxSize), currentSize_(0), stopCleaner_(false)
+        {
+            cleanerThread_ = std::thread(&Impl::cleaner, this);
+        }
 
-    ~Impl() {
+        ~Impl()
+        {
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                stopCleaner_ = true;
+            }
+            if (cleanerThread_.joinable())
+                cleanerThread_.join();
+        }
+
+        // Insert or update a cache entry.
+        void set(const std::string &key, const std::string &value,
+                 std::chrono::milliseconds ttl)
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            stopCleaner_ = true;
-        }
-        if (cleanerThread_.joinable())
-            cleanerThread_.join();
-    }
 
-    void set(const std::string& key, const std::string& value,
-             std::chrono::milliseconds ttl) {
-        auto now = std::chrono::steady_clock::now();
-        auto expireTime = now + (ttl.count() > 0 ? ttl : defaultTTL_);
-        std::lock_guard<std::mutex> lock(mutex_);
-        cache_[key] = { value, expireTime };
-    }
-
-    std::string get(const std::string& key) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = cache_.find(key);
-        if (it != cache_.end()) {
-            auto now = std::chrono::steady_clock::now();
-            if (now < it->second.expireTime) {
-                return it->second.value;
-            } else {
-                cache_.erase(it);
+            // If the key exists already, remove it (and update the current size).
+            auto found = cache_.find(key);
+            if (found != cache_.end())
+            {
+                currentSize_ -= (key.size() + found->second.entry.value.size());
+                lru_.erase(found->second.lruIterator);
+                cache_.erase(found);
             }
+
+            // Calculate the expiration time.
+            auto expireTime = std::chrono::steady_clock::now() + (ttl.count() > 0 ? ttl : defaultTTL_);
+            std::size_t entrySize = key.size() + value.size();
+
+            // If a single entry exceeds the max cache size, skip caching.
+            if (entrySize > maxSize_)
+            {
+                return;
+            }
+
+            // Evict least recently used items until there is enough space.
+            while (currentSize_ + entrySize > maxSize_)
+            {
+                if (lru_.empty())
+                    break; // Should not occur as entrySize < maxSize_.
+                std::string oldKey = lru_.back();
+                auto it = cache_.find(oldKey);
+                if (it != cache_.end())
+                {
+                    currentSize_ -= (oldKey.size() + it->second.entry.value.size());
+                    lru_.pop_back();
+                    cache_.erase(it);
+                }
+            }
+
+            // Insert the new key at the front of the LRU list.
+            lru_.push_front(key);
+            CacheEntry entry{value, expireTime};
+            CacheValue val{entry, lru_.begin()};
+            cache_[key] = val;
+            currentSize_ += entrySize;
         }
-        return "";
-    }
 
-private:
-    std::unordered_map<std::string, CacheEntry> cache_;
-    std::chrono::milliseconds defaultTTL_;
-    std::mutex mutex_;
-    bool stopCleaner_;
-    std::thread cleanerThread_;
-
-    void cleaner() {
-        while (true) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Retrieve a cache entry (and update its LRU position).
+        std::string get(const std::string &key)
+        {
             std::lock_guard<std::mutex> lock(mutex_);
-            if (stopCleaner_) break;
+            auto it = cache_.find(key);
+            if (it == cache_.end())
+                return "";
+
+            // Check expiration.
             auto now = std::chrono::steady_clock::now();
-            for (auto it = cache_.begin(); it != cache_.end(); ) {
-                if (now >= it->second.expireTime)
-                    it = cache_.erase(it);
-                else
-                    ++it;
+            if (now >= it->second.entry.expireTime)
+            {
+                currentSize_ -= (key.size() + it->second.entry.value.size());
+                lru_.erase(it->second.lruIterator);
+                cache_.erase(it);
+                return "";
+            }
+            // Update LRU order: move key to the front.
+            lru_.erase(it->second.lruIterator);
+            lru_.push_front(key);
+            it->second.lruIterator = lru_.begin();
+            return it->second.entry.value;
+        }
+
+    private:
+        // Structure to hold both the entry and its LRU list iterator.
+        struct CacheValue
+        {
+            CacheEntry entry;
+            std::list<std::string>::iterator lruIterator;
+        };
+
+        std::unordered_map<std::string, CacheValue> cache_;
+        std::list<std::string> lru_; // Front: most recently used, Back: least recently used.
+        std::chrono::milliseconds defaultTTL_;
+        std::size_t maxSize_;
+        std::size_t currentSize_;
+        std::mutex mutex_;
+        bool stopCleaner_;
+        std::thread cleanerThread_;
+
+        // Cleaner thread removes expired entries.
+        void cleaner()
+        {
+            while (true)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (stopCleaner_)
+                    break;
+                auto now = std::chrono::steady_clock::now();
+                for (auto it = cache_.begin(); it != cache_.end();)
+                {
+                    if (now >= it->second.entry.expireTime)
+                    {
+                        currentSize_ -= (it->first.size() + it->second.entry.value.size());
+                        lru_.erase(it->second.lruIterator);
+                        it = cache_.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
             }
         }
+    };
+
+    // Public interface definitions.
+    Cache::Cache(std::chrono::milliseconds defaultTTL, std::size_t maxSize)
+        : impl_(new Impl(defaultTTL, maxSize))
+    {
     }
-};
 
-// Cache public method definitions
-Cache::Cache(std::chrono::milliseconds defaultTTL)
-    : impl_(new Impl(defaultTTL)) {}
+    Cache::~Cache()
+    {
+        delete impl_;
+    }
 
-Cache::~Cache() {
-    delete impl_;
-}
+    void Cache::set(const std::string &key, const std::string &value,
+                    std::chrono::milliseconds ttl)
+    {
+        impl_->set(key, value, ttl);
+    }
 
-void Cache::set(const std::string& key, const std::string& value,
-                std::chrono::milliseconds ttl) {
-    impl_->set(key, value, ttl);
-}
-
-std::string Cache::get(const std::string& key) {
-    return impl_->get(key);
-}
+    std::string Cache::get(const std::string &key)
+    {
+        return impl_->get(key);
+    }
 
 } // namespace cache

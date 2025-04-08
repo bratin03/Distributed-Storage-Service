@@ -1,0 +1,3 @@
+server0: ./signupserver.out config/signup_config_1.json
+server1: ./signupserver.out config/signup_config_2.json
+server2: ./signupserver.out config/signup_config_3.json

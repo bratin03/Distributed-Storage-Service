@@ -8,7 +8,7 @@ using json = nlohmann::json;
 int main()
 {
     // Use the IP address of the load balancer
-    httplib::Client cli("127.0.0.1", 8080);
+    httplib::Client cli("127.0.0.1", 10000);
 
     // Construct the JSON payload for signup
     json payload;
