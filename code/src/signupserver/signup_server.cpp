@@ -133,7 +133,7 @@ bool signupUser(const std::string &username, const std::string &password, const 
 
     if (success == true)
     {
-        std::string RootKey = username + ":dropbbox";
+        std::string RootKey = username + ":dropbox";
         auto servers = select_block_server_group(RootKey);
         json new_metadata = {
             {"owner", username},

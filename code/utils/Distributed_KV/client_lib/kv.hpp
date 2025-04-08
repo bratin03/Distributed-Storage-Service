@@ -5,6 +5,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <fstream>
 #include <chrono>
 #include <curl/curl.h>
 #include "nlohmann/json.hpp"

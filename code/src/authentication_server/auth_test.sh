@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # -------- CONFIG -------- #
-SERVER_URL="http://127.0.1.1/10000"
+SERVER_URL="http://127.0.0.1:30000/login"
 USER_ID="lordu"
-PASSWORD="testpassword"
+PASSWORD="test1"
 # ------------------------ #
 
 echo "🔐 Logging in to authentication server..."

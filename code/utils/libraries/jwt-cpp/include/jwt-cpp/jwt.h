@@ -5,7 +5,7 @@
 #ifndef PICOJSON_USE_INT64
 #define PICOJSON_USE_INT64
 #endif
-#include "picojson/picojson.h"
+#include "../picojson/picojson.h"
 #endif
 
 #ifndef JWT_DISABLE_BASE64

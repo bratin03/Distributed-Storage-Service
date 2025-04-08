@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -I../../utils/libraries/cpp-httplib -I../../utils/libraries/jwt-cpp/include -I/usr/include/nlohmann -I./logger
-LDFLAGS = -L/usr/lib -lssl -lcrypto -lpthread -lhiredis
+LDFLAGS = -L/usr/lib -lssl -lcrypto -lpthread -lhiredis -lcurl
 
 # Targets
 METASERVER_TARGET = metaserver
