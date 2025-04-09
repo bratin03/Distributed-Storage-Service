@@ -1,7 +1,7 @@
-#include "logger/Mylogger.h"             // Custom logger header.
+#include "logger/Mylogger.h" // Custom logger header.
 #include <iostream>
 #include "http_listener.hpp"
-#include "notification_server.hpp"  // Assuming your NotificationServer is defined here.
+#include "notification_server.hpp" // Assuming your NotificationServer is defined here.
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -25,9 +25,12 @@ int main(int argc, char *argv[])
         return 1;
     }
     json config;
-    try {
+    try
+    {
         ifs >> config;
-    } catch (const std::exception &e) {
+    }
+    catch (const std::exception &e)
+    {
         MyLogger::error("Error parsing " + config_file + ": " + std::string(e.what()));
         return 1;
     }
@@ -49,8 +52,10 @@ int main(int argc, char *argv[])
 
     // Lambda that handles the HTTP request by parsing the JSON
     // and forwarding it to the broadcast API.
-    auto httpRequestHandler = [&notifServer](const std::string &body) {
-        try {
+    auto httpRequestHandler = [&notifServer](const std::string &body)
+    {
+        try
+        {
             auto parsed = json::parse(body);
             std::string target_user = parsed.value("user_id", "default");
             std::string message = parsed.value("message", "No message provided");
@@ -59,14 +64,14 @@ int main(int argc, char *argv[])
             // Construct a notification payload.
             json notification = {
                 {"message", message},
-                {"timestamp", std::time(nullptr)}
-            };
+                {"timestamp", std::time(nullptr)}};
 
             // Forward the notification using the broadcast API.
             notifServer.broadcastNotification(target_user, notification.dump());
             MyLogger::info("Broadcasted notification for user " + target_user);
         }
-        catch (const std::exception &e) {
+        catch (const std::exception &e)
+        {
             MyLogger::error("Error parsing HTTP request body: " + std::string(e.what()));
         }
     };

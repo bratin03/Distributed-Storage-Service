@@ -13,12 +13,13 @@
 
 // Using declarations for Boost.Beast and Boost.Asio namespaces.
 namespace beast = boost::beast;
-namespace http  = beast::http;
-namespace asio  = boost::asio;
-using tcp       = asio::ip::tcp;
+namespace http = beast::http;
+namespace asio = boost::asio;
+using tcp = asio::ip::tcp;
 
 // Define a simple structure to hold server information.
-struct Server {
+struct Server
+{
     std::string ip;
     unsigned short port;
 };
@@ -32,19 +33,22 @@ std::vector<Server> serverList = {
 };
 
 // Session class handles asynchronous connection and communication with one server.
-class Session : public std::enable_shared_from_this<Session> {
+class Session : public std::enable_shared_from_this<Session>
+{
 public:
     Session(asio::io_context &ioc, const Server &server, const nlohmann::json &message)
         : resolver_(ioc),
           stream_(ioc),
           server_(server),
           message_(message)
-    {}
+    {
+    }
 
     // Start the asynchronous chain.
-    void run() {
+    void run()
+    {
         MyLogger::info("Starting session for server " +
-                         server_.ip + ":" + std::to_string(server_.port));
+                       server_.ip + ":" + std::to_string(server_.port));
         // Begin async resolution.
         resolver_.async_resolve(
             server_.ip,
@@ -66,8 +70,10 @@ private:
     http::response<http::dynamic_body> res_;
 
     // Called once the DNS resolution is complete.
-    void on_resolve(beast::error_code ec, tcp::resolver::results_type results) {
-        if (ec) {
+    void on_resolve(beast::error_code ec, tcp::resolver::results_type results)
+    {
+        if (ec)
+        {
             MyLogger::error("Resolve error for " + server_.ip + ": " + ec.message());
             return;
         }
@@ -81,8 +87,10 @@ private:
     }
 
     // Called when connection is established.
-    void on_connect(beast::error_code ec) {
-        if (ec) {
+    void on_connect(beast::error_code ec)
+    {
+        if (ec)
+        {
             MyLogger::error("Connect error for " + server_.ip + ": " + ec.message());
             return;
         }
@@ -110,9 +118,11 @@ private:
     }
 
     // Called after the request is written.
-    void on_write(beast::error_code ec, std::size_t bytes_transferred) {
+    void on_write(beast::error_code ec, std::size_t bytes_transferred)
+    {
         boost::ignore_unused(bytes_transferred);
-        if (ec) {
+        if (ec)
+        {
             MyLogger::error("Write error for " + server_.ip + ": " + ec.message());
             return;
         }
@@ -131,9 +141,11 @@ private:
     }
 
     // Called when the response is received.
-    void on_read(beast::error_code ec, std::size_t bytes_transferred) {
+    void on_read(beast::error_code ec, std::size_t bytes_transferred)
+    {
         boost::ignore_unused(bytes_transferred);
-        if (ec) {
+        if (ec)
+        {
             MyLogger::error("Read error for " + server_.ip + ": " + ec.message());
             return;
         }
@@ -144,7 +156,8 @@ private:
         // Shutdown the connection gracefully.
         beast::error_code shutdown_ec;
         stream_.socket().shutdown(tcp::socket::shutdown_both, shutdown_ec);
-        if (shutdown_ec && shutdown_ec != beast::errc::not_connected) {
+        if (shutdown_ec && shutdown_ec != beast::errc::not_connected)
+        {
             MyLogger::error("Shutdown error for " + server_.ip + ": " + shutdown_ec.message());
             return;
         }
@@ -152,8 +165,10 @@ private:
     }
 };
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
+int main(int argc, char *argv[])
+{
+    if (argc < 2)
+    {
         MyLogger::error("Usage: " + std::string(argv[0]) + " <user_id>");
         return EXIT_FAILURE;
     }
@@ -163,18 +178,22 @@ int main(int argc, char *argv[]) {
     message["message"] = "Hello, World!";
     message["user_id"] = argv[1];
 
-    try {
+    try
+    {
         // Create an io_context for asynchronous operations.
         asio::io_context ioc;
 
         // Create and run a session for each server in the global list.
-        for (const auto &server : serverList) {
+        for (const auto &server : serverList)
+        {
             std::make_shared<Session>(ioc, server, message)->run();
         }
 
         // Run the io_context to process all asynchronous events concurrently.
         ioc.run();
-    } catch (const std::exception &e) {
+    }
+    catch (const std::exception &e)
+    {
         MyLogger::error("Exception: " + std::string(e.what()));
         return EXIT_FAILURE;
     }
