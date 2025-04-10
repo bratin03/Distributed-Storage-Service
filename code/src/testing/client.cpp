@@ -51,7 +51,6 @@ void test_create_directory(const std::vector<Server> &servers, const std::string
     for (const auto &server : servers)
     {
         std::cout << "-------------------------------------" << std::endl;
-
         httplib::Client cli(server.ip, server.port);
         httplib::Headers headers = {
             {"Authorization", "Bearer " + token}};
@@ -110,10 +109,6 @@ void test_create_file(const std::vector<Server> &storage_servers, const std::str
 
 void test_list_directory(const std::vector<Server> &storage_servers, const std::string &token, const std::string &directory_path)
 {
-    // Construct the JSON payload with the given file path.
-    json payload;
-    payload["path"] = directory_path;
-
     for (const auto &server : storage_servers)
     {
         std::cout << "-------------------------------------" << std::endl;
@@ -122,28 +117,63 @@ void test_list_directory(const std::vector<Server> &storage_servers, const std::
             {"Authorization", "Bearer " + token}};
 
         // Send a GET request to the list directory endpoint
-        std::string endpoint = "/list-directory" + directory_path;
-        auto res = cli.Get(endpoint.c_str(), headers, payload.dump(), "application/json");
+        std::string endpoint = "/list-directory/" + directory_path;
+        auto res = cli.Get(endpoint.c_str(), headers);
 
         if (res)
         {
             std::cout << "Status: " << res->status << std::endl;
             std::cout << "Response body: " << res->body << std::endl;
-
-            if (res->status == 200)
-            {
-                // Parse the response body as JSON
-                json response_json = json::parse(res->body);
-                std::cout<< "Response JSON: " << response_json.dump(4) << std::endl;
-            }
-            else
-            {
-                std::cerr << "Failed to list directory. Error: " << res->body << std::endl;
-            }
         }
         else
         {
             std::cerr << "Request failed. Error code: " << res.error() << std::endl;
+        }
+    }
+    std::cout << "-------------------------------------" << std::endl;
+}
+
+
+void test_update_file(const std::vector<Server> &storage_servers, const std::string &token, const std::string &file_path, int version)
+{
+    for (const auto &server : storage_servers)
+    {
+        std::cout << "-------------------------------------" << std::endl;
+        std::cout << "Testing update file on server: " << server.ip << ":" << server.port << std::endl;
+        httplib::Client cli(server.ip, server.port);
+        
+        json request_body = {
+            {"path", file_path},
+            {"version", version}
+        };
+        
+        httplib::Headers headers = {
+            {"Authorization", "Bearer " + token},
+            {"Content-Type", "application/json"}
+        };
+        
+        auto res = cli.Post("/update-file", headers, request_body.dump(), "application/json");
+        
+        if (!res)
+        {
+            std::cerr << "Failed to connect to the server.\n";
+            return;
+        }
+        
+        std::cout << "Status Code: " << res->status << "\n";
+        std::cout << "Response Body: " << res->body << "\n";
+        
+        auto response_json = json::parse(res->body);
+        if (res->status == 200)
+        {
+            assert(response_json["status"] == "ok");
+            assert(response_json.contains("servers"));
+        }
+        else if (res->status == 409)
+        {
+            assert(response_json["status"] == "outdated");
+            assert(response_json.contains("current_version"));
+            assert(response_json.contains("servers"));
         }
     }
     std::cout << "-------------------------------------" << std::endl;
@@ -238,15 +268,20 @@ int main()
     std::vector<Server> storage_servers = {
         {"127.0.0.3", 30000}};
 
-    test_create_directory(storage_servers, token, "dropbox/testdir");
+    // test_create_directory(storage_servers, token, "dropbox/testdir");
     // test_create_directory(storage_servers, token,"dropbox/testdir");
     // test_create_directory(storage_servers, token,"/testdir");
 
     test_create_file(storage_servers, token, "dropbox/testdir/testfile.txt");
     // test_create_file(storage_servers, token, "testdir/testfile.txt");
 
-    test_list_directory(storage_servers, token, "dropbox/testdir");
     // test_list_directory(storage_servers, token, "dropbox/testdir");
+    // test_list_directory(storage_servers, token, "/testdir");
+    // test_list_directory(storage_servers, token, "dropbox/testdir");
+
+    test_update_file(storage_servers, token, "dropbox/testfile.txt", 1);
+    test_update_file(storage_servers, token, "dropbox/testdir/testfile.txt", 1);
+    test_update_file(storage_servers, token, "dropbox/testdir/testfile.txt", 2);
 
     return 0;
 }

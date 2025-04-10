@@ -22,6 +22,17 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
     Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points
 */
 
+/*
+
+work -> 
+    notification server integration 
+    block server versioning 
+
+
+*/
+
+
+
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #pragma once
 
@@ -305,6 +316,14 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        if (utility_functions::is_tombstoned(metadata))
+        {
+            res.status = 400;
+            MyLogger::warning("Directory is tombstoned: " + key);
+            res.set_content(R"({"error": "Directory is tombstoned"})", "application/json");
+            return;
+        }
+
         res.set_content(metadata.dump(), "application/json");
         MyLogger::info("Listed directory from KV store: " + key);
     }
@@ -525,6 +544,16 @@ void update_file(const httplib::Request &req, httplib::Response &res)
         try
         {
             metadata = json::parse(kv_response.value);
+            if (metadata.is_string()) {
+                try {
+                    metadata = json::parse(metadata.get<std::string>());
+                } catch (const std::exception &e) {
+                    MyLogger::error("Failed to parse inner metadata: " + std::string(e.what()));
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
+                    return;
+                }
+            }
         }
         catch (const std::exception &e)
         {
@@ -534,6 +563,7 @@ void update_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        MyLogger::debug("File metadata: " + metadata.dump());
         int current_version = metadata.value("version", 1); // default to 1 for safety
 
         json &block_servers = Database_handler::select_block_server_group(key);
@@ -546,6 +576,7 @@ void update_file(const httplib::Request &req, httplib::Response &res)
                 {"servers", block_servers}};
             res.set_content(response_json.dump(), "application/json");
             MyLogger::info("File update accepted: " + key);
+
         }
         else
         {
@@ -636,14 +667,17 @@ int main()
 {
 
     httplib::Server svr;
-
+    
+    svr.set_logger([](const auto& req, const auto& res) {
+        std::cout << "Request: " << req.method << " " << req.path << std::endl;
+    });
     Initiation::initialize("config/server_config.json");
     // Routes
     svr.Post("/create-directory", create_directory);
     svr.Get("/list-directory/(.*)", list_directory);
     svr.Post("/create-file", create_file);
+    svr.Post("/update-file", update_file);
     // svr.Put("/confirmation/(.*)", block_server_confirmation);
-
     // Start server
 
     MyLogger::info("Server started");

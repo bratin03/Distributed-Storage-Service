@@ -13,3 +13,6 @@ notification server send notification
 After sending send a request to /commitDelete in metadata server
 
 metadata server delete the file metadata, chunk metadata, directory metadata and modify the parent directory metadata 
+
+
+
