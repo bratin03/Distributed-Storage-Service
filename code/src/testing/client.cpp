@@ -43,13 +43,15 @@ std::optional<std::string> get_token(const std::string &auth_ip, int auth_port, 
     return response_json["token"];
 }
 
-void test_create_directory(const std::vector<Server> &servers, const std::string &token, const std::string & dir_path )
+void test_create_directory(const std::vector<Server> &servers, const std::string &token, const std::string &dir_path)
 {
     json dir_payload = {
         {"path", dir_path}};
 
     for (const auto &server : servers)
     {
+        std::cout << "-------------------------------------" << std::endl;
+
         httplib::Client cli(server.ip, server.port);
         httplib::Headers headers = {
             {"Authorization", "Bearer " + token}};
@@ -67,23 +69,24 @@ void test_create_directory(const std::vector<Server> &servers, const std::string
             std::cerr << "No response from server: " << server.ip << ":" << server.port << std::endl;
         }
     }
+    std::cout << "-------------------------------------" << std::endl;
 }
 
-
-void test_create_file(const std::vector<Server>& storage_servers, const std::string& token, const std::string& file_path) {
+void test_create_file(const std::vector<Server> &storage_servers, const std::string &token, const std::string &file_path)
+{
     // Construct the JSON payload with the given file path.
     json payload;
     payload["path"] = file_path;
 
     // Loop over each storage server.
-    for (const auto& server : storage_servers) {
+    for (const auto &server : storage_servers)
+    {
         // Create an HTTP client instance for the current server.
         httplib::Client cli(server.ip, server.port);
-        
+
         // Set up the authorization header using the provided token.
         httplib::Headers headers = {
-            {"Authorization", "Bearer " + token}
-        };
+            {"Authorization", "Bearer " + token}};
 
         std::cout << "-----------------------------" << std::endl;
         std::cout << "Sending /create_file request to " << server.ip << ":" << server.port << std::endl;
@@ -92,14 +95,58 @@ void test_create_file(const std::vector<Server>& storage_servers, const std::str
         auto res = cli.Post("/create-file", headers, payload.dump(), "application/json");
 
         // Check and print out the HTTP status code and response.
-        if (res) {
+        if (res)
+        {
             std::cout << "Status: " << res->status << std::endl;
             std::cout << "Response: " << res->body << std::endl;
-        } else {
+        }
+        else
+        {
             std::cerr << "Error: No response from server " << server.ip << ":" << server.port << std::endl;
         }
     }
     std::cout << "-----------------------------" << std::endl;
+}
+
+void test_list_directory(const std::vector<Server> &storage_servers, const std::string &token, const std::string &directory_path)
+{
+    // Construct the JSON payload with the given file path.
+    json payload;
+    payload["path"] = directory_path;
+
+    for (const auto &server : storage_servers)
+    {
+        std::cout << "-------------------------------------" << std::endl;
+        httplib::Client cli(server.ip, server.port);
+        httplib::Headers headers = {
+            {"Authorization", "Bearer " + token}};
+
+        // Send a GET request to the list directory endpoint
+        std::string endpoint = "/list-directory" + directory_path;
+        auto res = cli.Get(endpoint.c_str(), headers, payload.dump(), "application/json");
+
+        if (res)
+        {
+            std::cout << "Status: " << res->status << std::endl;
+            std::cout << "Response body: " << res->body << std::endl;
+
+            if (res->status == 200)
+            {
+                // Parse the response body as JSON
+                json response_json = json::parse(res->body);
+                std::cout<< "Response JSON: " << response_json.dump(4) << std::endl;
+            }
+            else
+            {
+                std::cerr << "Failed to list directory. Error: " << res->body << std::endl;
+            }
+        }
+        else
+        {
+            std::cerr << "Request failed. Error code: " << res.error() << std::endl;
+        }
+    }
+    std::cout << "-------------------------------------" << std::endl;
 }
 
 int main()
@@ -191,14 +238,15 @@ int main()
     std::vector<Server> storage_servers = {
         {"127.0.0.3", 30000}};
 
-    // test_create_directory(storage_servers, token,"dropbox/testdir");
+    test_create_directory(storage_servers, token, "dropbox/testdir");
     // test_create_directory(storage_servers, token,"dropbox/testdir");
     // test_create_directory(storage_servers, token,"/testdir");
 
-    std::cout << "-------------------------------------" << std::endl;
-
     test_create_file(storage_servers, token, "dropbox/testdir/testfile.txt");
     // test_create_file(storage_servers, token, "testdir/testfile.txt");
+
+    test_list_directory(storage_servers, token, "dropbox/testdir");
+    // test_list_directory(storage_servers, token, "dropbox/testdir");
 
     return 0;
 }

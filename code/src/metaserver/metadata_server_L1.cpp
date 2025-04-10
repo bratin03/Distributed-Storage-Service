@@ -325,7 +325,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
         return;
 
-    try
+    // try
     {
         json body_json = json::parse(req.body);
         if (!body_json.contains("path"))
@@ -406,6 +406,16 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         try
         {
             parent_metadata = json::parse(parent_res.value);
+            if (parent_metadata.is_string()) {
+                try {
+                    parent_metadata = json::parse(parent_metadata.get<std::string>());
+                } catch (const std::exception &e) {
+                    MyLogger::error("Failed to parse inner metadata: " + std::string(e.what()));
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
+                    return;
+                }
+            }
         }
         catch (const std::exception &e)
         {
@@ -424,34 +434,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             MyLogger::warning("Parent directory is tombstoned: " + parent_key);
             res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
             return;
-        }
-
-
-
-        // Ensure that 'files' is a JSON object
-        if (!parent_metadata.contains("files") || !parent_metadata["files"].is_object())
-        {
-            if (parent_metadata.contains("files") && parent_metadata["files"].is_string())
-            {
-                // If 'files' is a string, try to parse it as JSON.
-                try
-                {
-                    parent_metadata["files"] = json::parse(parent_metadata["files"].get<std::string>());
-                }
-                catch (const std::exception &e)
-                {
-                    MyLogger::error("Failed to parse 'files' from parent metadata: " + std::string(e.what()));
-                    res.status = 500;
-                    res.set_content(R"({"error": "Invalid parent metadata format for files"})", "application/json");
-                    return;
-                }
-            }
-            else
-            {
-                // If not present or of a different type, reinitialize it to an empty object.
-                MyLogger::warning("Parent metadata 'files' key is not an object. Reinitializing.");
-                parent_metadata["files"] = json::object();
-            }
         }
 
         // Check for duplicate file
@@ -498,12 +480,12 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"message": "File created", "metadata": )" + file_meta.dump() + "}", "application/json");
         MyLogger::info("File created: " + key);
     }
-    catch (const std::exception &e)
-    {
-        MyLogger::error("Exception in create_file: " + std::string(e.what()));
-        res.status = 500;
-        res.set_content(R"({"error": "Internal server error"})", "application/json");
-    }
+    // catch (const std::exception &e)
+    // {
+    //     MyLogger::error("Exception in create_file: " + std::string(e.what()));
+    //     res.status = 500;
+    //     res.set_content(R"({"error": "Internal server error"})", "application/json");
+    // }
 }
 
 void update_file(const httplib::Request &req, httplib::Response &res)
@@ -658,7 +640,7 @@ int main()
     Initiation::initialize("config/server_config.json");
     // Routes
     svr.Post("/create-directory", create_directory);
-    // svr.Get("/list-directory/(.*)", list_directory);
+    svr.Get("/list-directory/(.*)", list_directory);
     svr.Post("/create-file", create_file);
     // svr.Put("/confirmation/(.*)", block_server_confirmation);
 
