@@ -1,0 +1,7 @@
+{
+  "redis_host": "127.0.0.1",
+  "redis_port": 10010,
+  "private_key_path": "private.pem",
+  "server_ip": "127.0.0.1",
+  "server_port": 30002
+}

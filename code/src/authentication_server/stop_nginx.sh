@@ -1,0 +1,1 @@
+sudo nginx -s stop -c $(pwd)/nginx/auth_servers.conf

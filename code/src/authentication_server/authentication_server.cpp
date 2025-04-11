@@ -110,9 +110,16 @@ json authenticateUser(const std::string &userID, const std::string &password)
     return result;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
- 
+
+    std::string config_path = "auth_config.json";
+    if (argc > 1)
+    {
+        config_path = argv[1];
+    }
+    MyLogger::info("Using config file: " + config_path);
+
     try
     {
         // Load config
@@ -161,14 +168,15 @@ int main()
             res.set_content(R"({"status": "error", "message": "Server error"})", "application/json");
         } });
 
-        MyLogger::info("Authentication Server running on " + server_ip + ":" + std::to_string(server_port) + "...");
+    MyLogger::info("Authentication Server running on " + server_ip + ":" + std::to_string(server_port) + "...");
 
-        // Check if listen was successful
-        if (!svr.listen(server_ip, server_port)) {
-            MyLogger::error("Failed to start server on " + server_ip + ":" + std::to_string(server_port));
-            return 1;
-        }
-        
+    // Check if listen was successful
+    if (!svr.listen(server_ip, server_port))
+    {
+        MyLogger::error("Failed to start server on " + server_ip + ":" + std::to_string(server_port));
+        return 1;
+    }
+
     // Cleanup
     if (redis_ctx)
     {

@@ -56,9 +56,6 @@ namespace login
                 std::cout << "Failed to save user info" << std::endl;
                 exit(1);
             }
-
-
-
         }
         else
         {
