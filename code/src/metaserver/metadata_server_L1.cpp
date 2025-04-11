@@ -146,18 +146,6 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 return;
             }
 
-            if (utility_functions::is_tombstoned(existing_metadata))
-            {
-                // If the directory is tombstoned, we can proceed to create it again
-                MyLogger::info("Directory is tombstoned, proceeding to create it again: " + key);
-            }
-            else
-            {
-
-                res.status = 400;
-                res.set_content(R"({"error": "Directory already exists"})", "application/json");
-                return;
-            }
         }
 
         std::string parent_dir, parent_key;
@@ -194,15 +182,6 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             res.status = 500;
             MyLogger::error("Failed to parse parent directory metadata: " + std::string(e.what()));
             res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
-            return;
-        }
-
-        // Check if parent directory is tombstoned
-        if (utility_functions::is_tombstoned(parent_metadata))
-        {
-            res.status = 400;
-            MyLogger::warning("Parent directory is tombstoned: " + parent_key);
-            res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
             return;
         }
 
