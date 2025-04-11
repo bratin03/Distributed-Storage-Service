@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX := g++
-CXXFLAGS := -std=c++17 -Wall -Wextra -O2 -pthread -Wextra
+CXXFLAGS := -std=c++17 -Wall -Wextra -O2 -pthread -Wextra -g -pg -I.
 
 # File names
 LIB_NAME := libcache.a

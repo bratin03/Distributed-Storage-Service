@@ -19,6 +19,7 @@ namespace ConfigReader
             json j;
             config_file >> j;
             MyLogger::info("Configuration file loaded successfully: " + filepath);
+            MyLogger::debug("Loaded JSON: " + j.dump(4)); // Pretty print the JSON
             return j;
         }
         catch (const json::parse_error &e)

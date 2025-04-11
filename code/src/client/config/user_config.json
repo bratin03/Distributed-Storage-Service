@@ -1,4 +1,4 @@
 {
-  "monitoring_directory": "/home/bratin/Shared",
-  "metadata_path": "/var/lib/DSS/metadata"
+  "monitoring_path": "/home/bratin/Shared/",
+  "metadata_path": "/var/lib/DSS/metadata/"
 }

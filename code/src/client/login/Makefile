@@ -5,7 +5,7 @@ CXX = g++
 AR = ar
 
 # Flags
-CXXFLAGS = -Wall -Wextra -O2 -std=c++17
+CXXFLAGS = -Wall -Wextra -O2 -std=c++17 -g -pg -I.
 ARFLAGS = rcs
 
 # Source and output

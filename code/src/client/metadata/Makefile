@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX := g++
-CXXFLAGS := -Wall -Wextra -O2 -std=c++17 -I./
+CXXFLAGS := -Wall -Wextra -O2 -std=c++17 -I. -g -pg
 
 # RocksDB and JSON dependencies
 INCLUDES := -I/usr/include -I/usr/local/include

@@ -2,7 +2,7 @@
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -O2 -Wall -I. -Wextra
+CXXFLAGS = -std=c++17 -O2 -Wall -I. -Wextra -g -pg
 
 # Output
 TARGET = libmerge.a

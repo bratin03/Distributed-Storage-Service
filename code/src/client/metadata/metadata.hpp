@@ -7,6 +7,7 @@
 #include <memory>
 #include "nlohmann/json.hpp"
 #include "rocksdb/db.h"
+#include "../logger/Mylogger.hpp"
 
 namespace metadata
 {
@@ -30,13 +31,9 @@ namespace metadata
                   const std::string &version, const std::string &content_hash,
                   const std::string &file_content);
 
-    void setFileName(const std::string &name);
-    std::string getFileName() const;
-
     bool storeToDatabase();
     bool loadFromDatabase();
 
-  private:
     std::string fileName;
     uint64_t fileSize;
     std::string version;
@@ -57,13 +54,9 @@ namespace metadata
                        const std::vector<std::string> &files,
                        const std::vector<std::string> &directories);
 
-    void setDirectoryName(const std::string &name);
-    std::string getDirectoryName() const;
-
     bool storeToDatabase();
     bool loadFromDatabase();
 
-  private:
     std::vector<std::string> files;
     std::vector<std::string> directories;
     std::string directoryName;
@@ -74,6 +67,8 @@ namespace metadata
   // -------------------------
 
   std::set<std::string> prefix_scan(const std::string &prefix);
+  bool removeFileFromDatabase(const std::string &key);
+  bool removeDirectoryFromDatabase(const std::string &key);
 
 } // namespace metadata
 

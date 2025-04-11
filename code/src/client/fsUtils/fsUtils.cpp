@@ -7,11 +7,8 @@
 
 namespace fsUtils
 {
-    namespace
-    {
-        std::string g_basePath;
-        std::string g_user;
-    }
+    std::string g_basePath;
+    std::string g_user;
 
     void initialize(const std::string &basePath, const std::string &user)
     {
@@ -20,9 +17,28 @@ namespace fsUtils
         MyLogger::info("Initialized fsUtils with base path: " + g_basePath + " and user: " + g_user);
     }
 
+    std::string buildKeyfromFullPath(fs::path fullPath)
+    {
+        std::string key = fullPath.string();
+        if (key.rfind(g_basePath, 0) == 0)
+        {
+            key = key.substr(g_basePath.length());
+        }
+        else
+        {
+            MyLogger::error("Full path does not start with expected base path (" + g_basePath + "): " + fullPath.string());
+        }
+        key = "dropbox/" + key;
+        MyLogger::info("Constructed key: " + key);
+        return key;
+    }
+
     std::filesystem::path buildFullPath(const std::string &relativePath)
     {
-        std::string prefix = g_user + ":dropbox/";
+
+        //
+
+        std::string prefix = "dropbox/";
         std::string pathStr = relativePath;
         if (relativePath.rfind(prefix, 0) == 0)
         {

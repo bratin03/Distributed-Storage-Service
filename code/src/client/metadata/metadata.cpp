@@ -39,16 +39,6 @@ namespace metadata
                                const std::string &content)
       : fileName(name), fileSize(size), version(ver), content_hash(hash), file_content(content) {}
 
-  void File_Metadata::setFileName(const std::string &name)
-  {
-    fileName = name;
-  }
-
-  std::string File_Metadata::getFileName() const
-  {
-    return fileName;
-  }
-
   bool File_Metadata::storeToDatabase()
   {
     auto db = getDatabase();
@@ -111,16 +101,6 @@ namespace metadata
                                          const std::vector<std::string> &directories)
       : files(files), directories(directories), directoryName(name) {}
 
-  void Directory_Metadata::setDirectoryName(const std::string &name)
-  {
-    directoryName = name;
-  }
-
-  std::string Directory_Metadata::getDirectoryName() const
-  {
-    return directoryName;
-  }
-
   bool Directory_Metadata::storeToDatabase()
   {
     auto db = getDatabase();
@@ -168,6 +148,7 @@ namespace metadata
 
   std::set<std::string> prefix_scan(const std::string &prefix)
   {
+    MyLogger::debug("Scanning for prefix: " + prefix);
     std::set<std::string> result;
     auto db = getDatabase();
     if (!db)
@@ -185,9 +166,51 @@ namespace metadata
       if (remainder.empty())
         continue;
       if (remainder.find('/') == std::string::npos)
+      {
+        MyLogger::debug("Found file key: " + key);
         result.insert(key);
+      }
     }
     return result;
   }
 
+  bool removeFileFromDatabase(const std::string &key)
+  {
+    auto db = getDatabase();
+    if (!db)
+      return false;
+
+    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), key);
+    MyLogger::warning("Removing file from database: " + key);
+    return status.ok();
+  }
+
+  bool removeDirectoryFromDatabase(const std::string &key)
+  {
+    MyLogger::warning("Removing directory from database: " + key);
+    auto db = getDatabase();
+    if (!db)
+      return false;
+    // First, read the directory metadata
+    metadata::Directory_Metadata dir_metadata(key);
+    if (!dir_metadata.loadFromDatabase())
+    {
+      return false;
+    }
+    auto files = dir_metadata.files;
+    auto directories = dir_metadata.directories;
+    // Remove all files in the directory
+    for (const auto &file : files)
+    {
+      removeFileFromDatabase(file);
+    }
+    // Remove all subdirectories
+    for (const auto &dir : directories)
+    {
+      removeDirectoryFromDatabase(dir);
+    }
+    // Finally, remove the directory itself
+    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), key);
+    return status.ok();
+  }
 } // namespace metadata

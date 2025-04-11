@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
     try
     {
         // Load config
-        json config = loadConfig("auth_config.json");
+        json config = loadConfig(config_path);
         server_ip = config["server_ip"];
         server_port = config["server_port"];
 
