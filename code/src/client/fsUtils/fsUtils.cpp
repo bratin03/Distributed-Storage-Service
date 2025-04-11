@@ -1,35 +1,44 @@
 #include "fsUtils.hpp"
+#include "../logger/Mylogger.hpp"
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <openssl/sha.h>
 
 namespace fsUtils
 {
-
-    FileSystemUtils::FileSystemUtils(const std::string &basePath, const std::string &user)
-        : m_basePath(basePath), m_user(user)
+    namespace
     {
-        MyLogger::info("Initialized FileSystemUtils with base path: " + m_basePath + " and user: " + m_user);
+        std::string g_basePath;
+        std::string g_user;
     }
 
-    std::filesystem::path FileSystemUtils::buildFullPath(const std::string &relativePath)
+    void initialize(const std::string &basePath, const std::string &user)
     {
-        // Expecting the relative path in the format: "user:dropbox/..."
-        std::string prefix = m_user + ":dropbox/";
+        g_basePath = basePath;
+        g_user = user;
+        MyLogger::info("Initialized fsUtils with base path: " + g_basePath + " and user: " + g_user);
+    }
+
+    std::filesystem::path buildFullPath(const std::string &relativePath)
+    {
+        std::string prefix = g_user + ":dropbox/";
         std::string pathStr = relativePath;
         if (relativePath.rfind(prefix, 0) == 0)
-        { // If the relative path starts with the prefix
+        {
             pathStr = relativePath.substr(prefix.length());
         }
         else
         {
             MyLogger::error("Relative path does not start with expected prefix (" + prefix + "): " + relativePath);
         }
-        auto fullPath = std::filesystem::path(m_basePath) / pathStr;
+        auto fullPath = std::filesystem::path(g_basePath) / pathStr;
         MyLogger::info("Constructed full path: " + fullPath.string());
         return fullPath;
     }
 
-    void FileSystemUtils::createTextFile(const std::string &relativePath, const std::string &content)
+    void createTextFile(const std::string &relativePath, const std::string &content)
     {
-        // Only allow .txt files
         if (std::filesystem::path(relativePath).extension() != ".txt")
         {
             MyLogger::error("File creation aborted: Only .txt files are allowed (" + relativePath + ")");
@@ -49,9 +58,8 @@ namespace fsUtils
         }
     }
 
-    std::string FileSystemUtils::readTextFile(const std::string &relativePath)
+    std::string readTextFile(const std::string &relativePath)
     {
-        // Only allow .txt files
         if (std::filesystem::path(relativePath).extension() != ".txt")
         {
             MyLogger::error("File read aborted: Only .txt files are allowed (" + relativePath + ")");
@@ -73,7 +81,7 @@ namespace fsUtils
         }
     }
 
-    bool FileSystemUtils::ensureDirectoryExists(const std::string &relativePath)
+    bool ensureDirectoryExists(const std::string &relativePath)
     {
         auto dirPath = buildFullPath(relativePath);
         std::error_code ec;
@@ -89,19 +97,15 @@ namespace fsUtils
             {
                 MyLogger::info("Successfully created directory: " + dirPath.string());
             }
-            else
-            {
-                MyLogger::info("Directory already existed: " + dirPath.string());
-            }
         }
         else
         {
-            MyLogger::info("Directory verified as existing: " + dirPath.string());
+            MyLogger::info("Directory already exists: " + dirPath.string());
         }
         return true;
     }
 
-    void FileSystemUtils::removeEntry(const std::string &relativePath)
+    void removeEntry(const std::string &relativePath)
     {
         auto entryPath = buildFullPath(relativePath);
         std::error_code ec;
@@ -128,7 +132,7 @@ namespace fsUtils
         }
     }
 
-    std::string FileSystemUtils::computeSHA256Hash(const std::string &content)
+    std::string computeSHA256Hash(const std::string &content)
     {
         unsigned char hash[SHA256_DIGEST_LENGTH];
         SHA256(reinterpret_cast<const unsigned char *>(content.c_str()), content.size(), hash);
