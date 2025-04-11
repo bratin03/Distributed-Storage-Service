@@ -108,15 +108,15 @@ namespace Database_handler
     }
 
 }
-namespace utility_functions
-{
-    // Round-Robin Selection Algorithm
+// namespace utility_functions
+// {
+//     // Round-Robin Selection Algorithm
    
-    inline bool is_tombstoned(const json &metadata) {
-        return metadata.contains("deleted") && metadata["deleted"].get<bool>() == true;
-    }
+//     inline bool is_tombstoned(const json &metadata) {
+//         return metadata.contains("deleted") && metadata["deleted"].get<bool>() == true;
+//     }
 
-}
+// }
 
 void create_directory(const httplib::Request &req, httplib::Response &res)
 {
@@ -157,18 +157,13 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 return;
             }
 
-            if(utility_functions::is_tombstoned(existing_metadata))
-            {
-                // If the directory is tombstoned, we can proceed to create it again
-                MyLogger::info("Directory is tombstoned, proceeding to create it again: " + key);
-            }
-            else
-            {
+            // If the directory is tombstoned, we can proceed to create it again
+            // not doing this
                 
-                res.status = 400;
-                res.set_content(R"({"error": "Directory already exists"})", "application/json");
-                return;
-            }
+            res.status = 400;
+            res.set_content(R"({"error": "Directory already exists"})", "application/json");
+            return;
+        
         }
 
         std::string parent_dir, parent_key;
@@ -211,13 +206,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         }
         
         // Check if parent directory is tombstoned
-        if(utility_functions::is_tombstoned(parent_metadata))  
-        {
-            res.status = 400;
-            MyLogger::warning("Parent directory is tombstoned: " + parent_key);
-            res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
-            return;
-        }
+        // not doing this 
     
 
         // Choose 3 block servers for this directory
@@ -307,13 +296,8 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
-        if (utility_functions::is_tombstoned(metadata))
-        {
-            res.status = 400;
-            MyLogger::warning("Directory is tombstoned: " + key);
-            res.set_content(R"({"error": "Directory is tombstoned"})", "application/json");
-            return;
-        }
+        // if (utility_functions::is_tombstoned(metadata))
+      
 
         res.set_content(metadata.dump(), "application/json");
         MyLogger::info("Listed directory from KV store: " + key);
@@ -366,17 +350,13 @@ void create_file(const httplib::Request &req, httplib::Response &res)
                 return;
             }
 
-            if (utility_functions::is_tombstoned(existing_metadata))
-            {
-                // If the file is tombstoned, we can proceed to create it again
-                MyLogger::info("File is tombstoned, proceeding to create it again: " + key);
-            }
-            else
-            {
-                res.status = 400;
-                res.set_content(R"({"error": "File already exists"})", "application/json");
-                return;
-            }
+            // If the file is tombstoned, we can proceed to create it again
+            // not doing this
+            
+            res.status = 400;
+            res.set_content(R"({"error": "File already exists"})", "application/json");
+            return;
+            
         }
 
 
@@ -437,14 +417,10 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         // Debug print the metadata
         MyLogger::debug("parent metadata: " + parent_metadata.dump());
+       
+       
         // Check if parent directory is tombstoned
-        if (utility_functions::is_tombstoned(parent_metadata))
-        {
-            res.status = 400;
-            MyLogger::warning("Parent directory is tombstoned: " + parent_key);
-            res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
-            return;
-        }
+        // not doing this
 
         // Check for duplicate file
         if (parent_metadata["files"].contains(filename))
@@ -550,13 +526,7 @@ void update_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
         // Check if the file is tombstoned
-        if (utility_functions::is_tombstoned(metadata))
-        {
-            res.status = 400;
-            MyLogger::warning("File is deleted: " + key);
-            res.set_content(R"({"error": "File is already deleted"})", "application/json");
-            return;
-        }
+        // not doing this
 
         MyLogger::debug("File metadata: " + metadata.dump());
         int current_version = metadata.value("version", 1); // default to 1 for safety
@@ -641,13 +611,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
     }
 
     // Check if the file is marked as deleted (tombstoned)
-    if (utility_functions::is_tombstoned(metadata))
-    {
-        res.status = 400;
-        MyLogger::warning("File is deleted: " + key);
-        res.set_content(R"({"error": "File is deleted"})", "application/json");
-        return;
-    }
+    // not doing this
 
     // Get the block server endpoints for this file
     json &block_servers = Database_handler::select_block_server_group(key);
@@ -667,72 +631,6 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
 
 
 
-
-// // // Example function to send notification via HTTP POST
-// // void send_notification(nlohmann::json &message) {
-// //     // Iterate over all notification server entries
-// //     for (const auto &server : notification_servers) {
-// //         try {
-// //             // Assuming each 'server' has members "ip" and "port".
-// //             std::string server_ip = server.ip; // or server["ip"] if using json
-// //             unsigned short server_port = server.port; // or static_cast<unsigned short>(server["port"])
-
-// //             // Create an io_context for this connection.
-// //             asio::io_context ioc;
-
-// //             // Resolve the server address and port.
-// //             tcp::resolver resolver(ioc);
-// //             auto const results = resolver.resolve(server_ip, std::to_string(server_port));
-
-// //             // Create a TCP stream using Boost.Beast.
-// //             beast::tcp_stream stream(ioc);
-
-// //             // Establish a connection using one of the endpoints.
-// //             stream.connect(results);
-
-// //             // Prepare the HTTP POST request to the "/broadcast" endpoint.
-// //             http::request<http::string_body> req{http::verb::post, "/broadcast", 11};
-// //             req.set(http::field::host, server_ip);
-// //             req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-// //             req.set(http::field::content_type, "application/json");
-// //             req.body() = message.dump();
-// //             req.prepare_payload();
-
-// //             // Send the HTTP request to the server.
-// //             http::write(stream, req);
-
-// //             // Buffer for reading the response.
-// //             beast::flat_buffer buffer;
-// //             // Container for the response.
-// //             http::response<http::dynamic_body> res;
-// //             // Receive the HTTP response.
-// //             http::read(stream, buffer, res);
-// //             std::cout << "Response from " << server_ip << ": " << res << std::endl;
-
-// //             // Gracefully close the socket.
-// //             beast::error_code ec;
-// //             stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-// //             if (ec && ec != beast::errc::not_connected) {
-// //                 throw beast::system_error{ec};
-// //             }
-// //         } catch (const std::exception &e) {
-// //             std::cerr << "Error sending notification to server: " << e.what() << "\n";
-// //         }
-// //     }
-// // }
-
-// // Function to handle block server confirmation
-// // it will send the confirmation to the notification server
-// void block_server_confirmation(const httplib::Request &req, httplib::Response &res)
-// {
-
-//     MyLogger::info("Received block server confirmation request");
-//     json message = {
-//         {"type", "block_server_confirmation"}
-//     };
-
-//     send_notification(message);
-// }
 
 int main()
 {
