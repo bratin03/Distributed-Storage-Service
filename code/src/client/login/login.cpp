@@ -1,5 +1,5 @@
 #include "login.hpp"
-#include "load_config/load_config.hpp"
+#include "../load_config/load_config.hpp"
 
 namespace login
 {
@@ -13,10 +13,14 @@ namespace login
     void handle_server_info(json &server_info)
     {
         server_info = ConfigReader::load(server_info_config_path);
-        signUpLoadBalancerip = ConfigReader::get_config_string("si", server_info);
-        signUpLoadBalancerPort = ConfigReader::get_config_short("signUpLoadBalancerPort", server_info);
-        loginLoadBalancerip = ConfigReader::get_config_string("loginLoadBalancerip", server_info);
-        loginLoadBalancerPort = ConfigReader::get_config_short("loginLoadBalancerPort", server_info);
+        signUpLoadBalancerip = ConfigReader::get_config_string("signup_ip", server_info);
+        signUpLoadBalancerPort = ConfigReader::get_config_short("signup_port", server_info);
+        loginLoadBalancerip = ConfigReader::get_config_string("login_ip", server_info);
+        loginLoadBalancerPort = ConfigReader::get_config_short("login_port", server_info);
+        MyLogger::info("SignUp LoadBalancer IP: " + signUpLoadBalancerip);
+        MyLogger::info("SignUp LoadBalancer Port: " + std::to_string(signUpLoadBalancerPort));
+        MyLogger::info("Login LoadBalancer IP: " + loginLoadBalancerip);
+        MyLogger::info("Login LoadBalancer Port: " + std::to_string(loginLoadBalancerPort));
     }
 
     void handle_user_info(int argc, char *argv[], json &user_info, std::string &username, std::string &password,
@@ -56,6 +60,19 @@ namespace login
                 std::cout << "Failed to save user info" << std::endl;
                 exit(1);
             }
+
+            auto signup_result = login::signup(username, password);
+            if (signup_result)
+            {
+                MyLogger::info("Signup successful");
+                std::cout << "Signup successful" << std::endl;
+            }
+            else
+            {
+                MyLogger::error("Signup failed");
+                std::cout << "Signup failed" << std::endl;
+                exit(1);
+            }
         }
         else
         {
@@ -63,6 +80,39 @@ namespace login
             std::cout << "If no username and password are provided, the program will use the default values from config/user_info.json" << std::endl;
             exit(1);
         }
+    }
+
+    bool signup(const std::string &username, const std::string &password)
+    {
+        httplib::Client cli(signUpLoadBalancerip, signUpLoadBalancerPort);
+        json payload;
+        MyLogger::info("Sending signup request to " + signUpLoadBalancerip + ":" + std::to_string(signUpLoadBalancerPort));
+        payload["username"] = username;
+        payload["password"] = password;
+
+        auto res = cli.Post("/signup", payload.dump(), "application/json");
+
+        if (res)
+        {
+            if (res->status == 200)
+            {
+                MyLogger::info("Signup successful: " + res->body);
+                return true;
+            }
+            else
+            {
+                MyLogger::error("Signup failed (" + std::to_string(res->status) + "): " + res->body);
+                std::cout << "Signup failed (" << res->status << "): " << res->body << std::endl;
+                return false;
+            }
+        }
+        else
+        {
+            MyLogger::error("Error: No response from server");
+            std::cerr << "Error: No response from server" << std::endl;
+            return false;
+        }
+        return false;
     }
 
 }
