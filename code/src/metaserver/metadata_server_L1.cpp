@@ -22,6 +22,17 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
     Client will need to parse this metadata to get the list of subdirectories and files end points then hit those end points
 */
 
+/*
+
+work -> 
+    notification server integration 
+    block server versioning 
+
+
+*/
+
+
+
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #pragma once
 
@@ -97,18 +108,25 @@ namespace Database_handler
     }
 
 }
-
-// Round-Robin Selection Algorithm
-void select_round_robin_servers(std::vector<std::string> &selected, int count = 3)
+namespace utility_functions
 {
-    static size_t index = 0;
-    // std::lock_guard<std::mutex> lock(server_lock);
-
-    for (int i = 0; i < count; i++)
+    // Round-Robin Selection Algorithm
+    inline void select_round_robin_servers(std::vector<std::string> &selected, int count = 3)
     {
-        selected.push_back(Initiation::metadata_servers[(index + i) % Initiation::metadata_servers.size()]);
+        static size_t index = 0;
+        // std::lock_guard<std::mutex> lock(server_lock);
+
+        for (int i = 0; i < count; i++)
+        {
+            selected.push_back(Initiation::metadata_servers[(index + i) % Initiation::metadata_servers.size()]);
+        }
+        index = (index + count) % Initiation::metadata_servers.size();
     }
-    index = (index + count) % Initiation::metadata_servers.size();
+
+    inline bool is_tombstoned(const json &metadata) {
+        return metadata.contains("deleted") && metadata["deleted"].get<bool>() == true;
+    }
+
 }
 
 void create_directory(const httplib::Request &req, httplib::Response &res)
@@ -134,45 +152,88 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
 
         json existing_metadata;
         auto get_result = Database_handler::get_directory_metadata(key);
-        if (get_result.success)
+        if ( get_result.success )
         {
-            res.status = 400;
             MyLogger::warning("Directory already exists: " + key);
-            res.set_content(R"({"error": "Directory already exists"})", "application/json");
-            return;
-        }
-
-        std::string parent_dir, parent_key;
-        json parent_metadata;
-        if (size_t last_slash = dir_id.find_last_of('/'); last_slash != std::string::npos)
-        {
-            parent_dir = dir_id.substr(0, last_slash);
-            parent_key = userID + ":" + parent_dir;
-
-            auto parent_get_result = Database_handler::get_directory_metadata(parent_key);
-            if (!parent_get_result.success)
-            {
-                res.status = 404;
-                MyLogger::warning("Parent directory not found: " + parent_key);
-                res.set_content(R"({"error": "Parent directory not found"})", "application/json");
-                return;
-            }
+            
             try
             {
-                parent_metadata = json::parse(parent_get_result.value);
+                existing_metadata = json::parse(get_result.value);
             }
             catch (const std::exception &e)
             {
                 res.status = 500;
-                MyLogger::error("Failed to parse parent directory metadata: " + std::string(e.what()));
-                res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
+                MyLogger::error("Failed to parse existing directory metadata: " + std::string(e.what()));
+                res.set_content(R"({"error": "Failed to parse existing directory metadata"})", "application/json");
+                return;
+            }
+
+            if(utility_functions::is_tombstoned(existing_metadata))
+            {
+                // If the directory is tombstoned, we can proceed to create it again
+                MyLogger::info("Directory is tombstoned, proceeding to create it again: " + key);
+            }
+            else
+            {
+                
+                res.status = 400;
+                res.set_content(R"({"error": "Directory already exists"})", "application/json");
                 return;
             }
         }
 
+        std::string parent_dir, parent_key;
+        json parent_metadata;
+        
+        size_t last_slash = dir_id.find_last_of('/');
+        if (last_slash == std::string::npos)
+        {
+            res.status = 400;
+            MyLogger::warning("File creation failed: Invalid file path (no parent directory)");
+            res.set_content(R"({"error": "Invalid file path"})", "application/json");
+            return;
+        }
+
+
+        
+        parent_dir = dir_id.substr(0, last_slash);
+        parent_key = userID + ":" + parent_dir;
+
+        auto parent_get_result = Database_handler::get_directory_metadata(parent_key);
+        if (!parent_get_result.success)  // Check if parent directory exists
+        {
+            res.status = 404;
+            MyLogger::warning("Parent directory not found: " + parent_key + " " + parent_get_result.err);
+            res.set_content(R"({"error": "Parent directory not found"})", "application/json");
+            return;
+        }
+        
+        // Parse parent metadata
+        try
+        {
+            parent_metadata = json::parse(parent_get_result.value);
+        }
+        catch (const std::exception &e)
+        {
+            res.status = 500;
+            MyLogger::error("Failed to parse parent directory metadata: " + std::string(e.what()));
+            res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
+            return;
+        }
+        
+        // Check if parent directory is tombstoned
+        if(utility_functions::is_tombstoned(parent_metadata))  
+        {
+            res.status = 400;
+            MyLogger::warning("Parent directory is tombstoned: " + parent_key);
+            res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
+            return;
+        }
+    
+
         // Choose 3 block servers for this directory
         std::vector<std::string> chosen_servers;
-        select_round_robin_servers(chosen_servers);
+        utility_functions::select_round_robin_servers(chosen_servers);
 
         json new_metadata = {
             {"owner", userID},
@@ -180,7 +241,9 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             {"subdirectories", json::object()},
             {"files", json::object()},
             {"endpoints", chosen_servers},
-            {"parent_dir", parent_dir}};
+            {"parent_dir", parent_dir},
+            {"deleted", false} // New field to indicate if the directory is deleted
+        };
 
         auto set_result = Database_handler::set_directory_metadata(key, new_metadata);
         if (!set_result.success)
@@ -217,6 +280,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
 }
+
 // Function to list a directory
 void list_directory(const httplib::Request &req, httplib::Response &res)
 {
@@ -252,6 +316,14 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        if (utility_functions::is_tombstoned(metadata))
+        {
+            res.status = 400;
+            MyLogger::warning("Directory is tombstoned: " + key);
+            res.set_content(R"({"error": "Directory is tombstoned"})", "application/json");
+            return;
+        }
+
         res.set_content(metadata.dump(), "application/json");
         MyLogger::info("Listed directory from KV store: " + key);
     }
@@ -272,7 +344,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
         return;
 
-    try
+    // try
     {
         json body_json = json::parse(req.body);
         if (!body_json.contains("path"))
@@ -285,6 +357,38 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         std::string file_path = body_json["path"];
         std::string key = userID + ":" + file_path;
+
+        json existing_metadata;
+        auto get_result = Database_handler::get_directory_metadata(key);
+        if (get_result.success)
+        {
+            MyLogger::warning("File already exists: " + key);
+            try
+            {
+                existing_metadata = json::parse(get_result.value);
+            }
+            catch (const std::exception &e)
+            {
+                res.status = 500;
+                MyLogger::error("Failed to parse existing file metadata: " + std::string(e.what()));
+                res.set_content(R"({"error": "Failed to parse existing file metadata"})", "application/json");
+                return;
+            }
+
+            if (utility_functions::is_tombstoned(existing_metadata))
+            {
+                // If the file is tombstoned, we can proceed to create it again
+                MyLogger::info("File is tombstoned, proceeding to create it again: " + key);
+            }
+            else
+            {
+                res.status = 400;
+                res.set_content(R"({"error": "File already exists"})", "application/json");
+                return;
+            }
+        }
+
+
         size_t last_slash = file_path.find_last_of('/');
         if (last_slash == std::string::npos)
         {
@@ -294,12 +398,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
-        std::string parent_dir = file_path.substr(0, last_slash);
-        std::string parent_key = userID + ":" + parent_dir;
-        std::string filename = file_path.substr(last_slash + 1);
-
-        // Fetch parent directory metadata
-        auto parent_res = Database_handler::get_directory_metadata(parent_key);
         /*
          struct Response
             {
@@ -308,18 +406,35 @@ void create_file(const httplib::Request &req, httplib::Response &res)
                 bool success;
             };
         */
+
+        std::string parent_dir = file_path.substr(0, last_slash);
+        std::string parent_key = userID + ":" + parent_dir;
+        json parent_metadata;
+        std::string filename = file_path.substr(last_slash + 1);
+
+        // Fetch parent directory metadata
+        auto parent_res = Database_handler::get_directory_metadata(parent_key);
         if (!parent_res.success)
         {
             res.status = 404;
-            MyLogger::warning("File creation failed: Parent directory not found");
+            MyLogger::warning("File creation failed: Parent directory not found "+ parent_dir + " " + parent_res.err);
             res.set_content(R"({"error": "Parent directory not found"})", "application/json");
             return;
         }
 
-        json parent_metadata;
         try
         {
             parent_metadata = json::parse(parent_res.value);
+            if (parent_metadata.is_string()) {
+                try {
+                    parent_metadata = json::parse(parent_metadata.get<std::string>());
+                } catch (const std::exception &e) {
+                    MyLogger::error("Failed to parse inner metadata: " + std::string(e.what()));
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
+                    return;
+                }
+            }
         }
         catch (const std::exception &e)
         {
@@ -331,31 +446,13 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         // Debug print the metadata
         MyLogger::debug("parent metadata: " + parent_metadata.dump());
-
-        // Ensure that 'files' is a JSON object
-        if (!parent_metadata.contains("files") || !parent_metadata["files"].is_object())
+        // Check if parent directory is tombstoned
+        if (utility_functions::is_tombstoned(parent_metadata))
         {
-            if (parent_metadata.contains("files") && parent_metadata["files"].is_string())
-            {
-                // If 'files' is a string, try to parse it as JSON.
-                try
-                {
-                    parent_metadata["files"] = json::parse(parent_metadata["files"].get<std::string>());
-                }
-                catch (const std::exception &e)
-                {
-                    MyLogger::error("Failed to parse 'files' from parent metadata: " + std::string(e.what()));
-                    res.status = 500;
-                    res.set_content(R"({"error": "Invalid parent metadata format for files"})", "application/json");
-                    return;
-                }
-            }
-            else
-            {
-                // If not present or of a different type, reinitialize it to an empty object.
-                MyLogger::warning("Parent metadata 'files' key is not an object. Reinitializing.");
-                parent_metadata["files"] = json::object();
-            }
+            res.status = 400;
+            MyLogger::warning("Parent directory is tombstoned: " + parent_key);
+            res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
+            return;
         }
 
         // Check for duplicate file
@@ -370,8 +467,8 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         MyLogger::info("Creating file: " + key);
 
         std::vector<std::string> chosen_servers;
-        select_round_robin_servers(chosen_servers);
-
+        utility_functions::select_round_robin_servers(chosen_servers);
+ 
         json file_meta = {
             {"parent_dir", parent_dir},
             {"filename", filename},
@@ -379,7 +476,10 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"size", 0},
             {"version", 1},
-            {"servers", chosen_servers}};
+            {"servers", chosen_servers},
+            {"deleted", false} // New field to indicate if the file is deleted
+            
+        };
 
         // Add to parent's files
         parent_metadata["files"][filename] = chosen_servers;
@@ -399,12 +499,12 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"message": "File created", "metadata": )" + file_meta.dump() + "}", "application/json");
         MyLogger::info("File created: " + key);
     }
-    catch (const std::exception &e)
-    {
-        MyLogger::error("Exception in create_file: " + std::string(e.what()));
-        res.status = 500;
-        res.set_content(R"({"error": "Internal server error"})", "application/json");
-    }
+    // catch (const std::exception &e)
+    // {
+    //     MyLogger::error("Exception in create_file: " + std::string(e.what()));
+    //     res.status = 500;
+    //     res.set_content(R"({"error": "Internal server error"})", "application/json");
+    // }
 }
 
 void update_file(const httplib::Request &req, httplib::Response &res)
@@ -444,6 +544,16 @@ void update_file(const httplib::Request &req, httplib::Response &res)
         try
         {
             metadata = json::parse(kv_response.value);
+            if (metadata.is_string()) {
+                try {
+                    metadata = json::parse(metadata.get<std::string>());
+                } catch (const std::exception &e) {
+                    MyLogger::error("Failed to parse inner metadata: " + std::string(e.what()));
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
+                    return;
+                }
+            }
         }
         catch (const std::exception &e)
         {
@@ -453,6 +563,7 @@ void update_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        MyLogger::debug("File metadata: " + metadata.dump());
         int current_version = metadata.value("version", 1); // default to 1 for safety
 
         json &block_servers = Database_handler::select_block_server_group(key);
@@ -465,6 +576,7 @@ void update_file(const httplib::Request &req, httplib::Response &res)
                 {"servers", block_servers}};
             res.set_content(response_json.dump(), "application/json");
             MyLogger::info("File update accepted: " + key);
+
         }
         else
         {
@@ -555,14 +667,17 @@ int main()
 {
 
     httplib::Server svr;
-
+    
+    svr.set_logger([](const auto& req, const auto& res) {
+        std::cout << "Request: " << req.method << " " << req.path << std::endl;
+    });
     Initiation::initialize("config/server_config.json");
     // Routes
     svr.Post("/create-directory", create_directory);
-    // svr.Get("/list-directory/(.*)", list_directory);
+    svr.Get("/list-directory/(.*)", list_directory);
     svr.Post("/create-file", create_file);
+    svr.Post("/update-file", update_file);
     // svr.Put("/confirmation/(.*)", block_server_confirmation);
-
     // Start server
 
     MyLogger::info("Server started");
