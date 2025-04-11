@@ -1,5 +1,6 @@
 #include "initiation.hpp"
 #include "../logger/Mylogger.h"
+#include "../../notification_server/AsyncBroadcaster.hpp"
 #include <fstream>
 #include <mutex>
 
@@ -13,6 +14,7 @@ namespace Initiation {
     inline std::vector<std::string> notification_servers;
     inline std::vector<std::vector<std::string>> metastorage_groups;
     inline std::vector<json> blockserver_lists;
+    inline std::unique_ptr<async_broadcast::AsyncBroadcaster>broadcaster;
 
     void initialize(const std::string& config_file) {
         std::ifstream file(config_file);
@@ -49,6 +51,10 @@ namespace Initiation {
         }
 
         MyLogger::info("Successfully initialized all config parameters.");
+
+        broadcaster = std::make_unique<async_broadcast::AsyncBroadcaster>(parseServerUrls(notification_servers));
+
+
     }
 
     std::string loadKey(const std::string &filename) {
@@ -58,6 +64,30 @@ namespace Initiation {
             throw std::runtime_error("Failed to open key file");
         }
         return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    }
+
+    std::vector<async_broadcast::Server> parseServerUrls(const std::vector<std::string>& urls) {
+        std::vector<async_broadcast::Server> servers;
+        for (const auto& url : urls) {
+            std::string temp = url;
+            // Remove protocol (e.g., "http://") if present.
+            size_t pos = temp.find("://");
+            if (pos != std::string::npos) {
+                temp = temp.substr(pos + 3);
+            }
+            // Find the colon that separates the IP and port.
+            pos = temp.find(':');
+            if (pos != std::string::npos) {
+                std::string ip = temp.substr(0, pos);
+                // Parse port number from the remainder of the string.
+                unsigned short port = static_cast<unsigned short>(std::stoi(temp.substr(pos + 1)));
+                servers.push_back({ ip, port });
+            }
+            else {
+                MyLogger::error("Invalid server URL format: " + url);
+            }
+        }
+        return servers;
     }
 
 }

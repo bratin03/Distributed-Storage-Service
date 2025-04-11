@@ -24,14 +24,12 @@ g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -
 
 /*
 
-work -> 
-    notification server integration 
-    block server versioning 
+work ->
+    notification server integration
+    block server versioning
 
 
 */
-
-
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #pragma once
@@ -108,15 +106,7 @@ namespace Database_handler
     }
 
 }
-// namespace utility_functions
-// {
-//     // Round-Robin Selection Algorithm
-   
-//     inline bool is_tombstoned(const json &metadata) {
-//         return metadata.contains("deleted") && metadata["deleted"].get<bool>() == true;
-//     }
 
-// }
 
 void create_directory(const httplib::Request &req, httplib::Response &res)
 {
@@ -141,10 +131,10 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
 
         json existing_metadata;
         auto get_result = Database_handler::get_directory_metadata(key);
-        if ( get_result.success )
+        if (get_result.success)
         {
             MyLogger::warning("Directory already exists: " + key);
-            
+
             try
             {
                 existing_metadata = json::parse(get_result.value);
@@ -157,18 +147,23 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 return;
             }
 
-            // If the directory is tombstoned, we can proceed to create it again
-            // not doing this
+            if(utility_functions::is_tombstoned(existing_metadata))
+            {
+                // If the directory is tombstoned, we can proceed to create it again
+                MyLogger::info("Directory is tombstoned, proceeding to create it again: " + key);
+            }
+            else
+            {
                 
-            res.status = 400;
-            res.set_content(R"({"error": "Directory already exists"})", "application/json");
-            return;
-        
+                res.status = 400;
+                res.set_content(R"({"error": "Directory already exists"})", "application/json");
+                return;
+            }
         }
 
         std::string parent_dir, parent_key;
         json parent_metadata;
-        
+
         size_t last_slash = dir_id.find_last_of('/');
         if (last_slash == std::string::npos)
         {
@@ -178,20 +173,18 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
-
-        
         parent_dir = dir_id.substr(0, last_slash);
         parent_key = userID + ":" + parent_dir;
 
         auto parent_get_result = Database_handler::get_directory_metadata(parent_key);
-        if (!parent_get_result.success)  // Check if parent directory exists
+        if (!parent_get_result.success) // Check if parent directory exists
         {
             res.status = 404;
             MyLogger::warning("Parent directory not found: " + parent_key + " " + parent_get_result.err);
             res.set_content(R"({"error": "Parent directory not found"})", "application/json");
             return;
         }
-        
+
         // Parse parent metadata
         try
         {
@@ -204,9 +197,15 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             res.set_content(R"({"error": "Failed to parse parent directory metadata"})", "application/json");
             return;
         }
-        
+
         // Check if parent directory is tombstoned
-        // not doing this 
+        if(utility_functions::is_tombstoned(parent_metadata))  
+        {
+            res.status = 400;
+            MyLogger::warning("Parent directory is tombstoned: " + parent_key);
+            res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
+            return;
+        }
     
 
         // Choose 3 block servers for this directory
@@ -232,11 +231,10 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         {
             // Update parent metadata
             // Add the new directory to the parent's subdirectories field without endpoints.
-            
+
             std::string dir_name = dir_id.substr(last_slash + 1);
-            auto& subdirs = parent_metadata["subdirectories"];
+            auto &subdirs = parent_metadata["subdirectories"];
             subdirs.push_back(dir_name);
-            
 
             auto update_parent_result = Database_handler::set_directory_metadata(parent_key, parent_metadata);
             if (!update_parent_result.success)
@@ -252,6 +250,14 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             "application/json");
 
         MyLogger::info("Directory created: " + key);
+
+        // Notify the notification server about the new directory
+        json notification_payload = {
+            {"type", "DIR+"},
+            {"user_id", userID},
+            {"path", dir_id}};
+
+        Initiation::broadcaster->broadcast(notification_payload);
     }
     catch (const std::exception &e)
     {
@@ -271,8 +277,17 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
 
     try
     {
+        json body_json = json::parse(req.body);
 
-        std::string dir_id = req.matches[1];
+        if (!body_json.contains("path"))
+        {
+            res.status = 400;
+            res.set_content(R"({"error": "Missing path or version"})", "application/json");
+            MyLogger::warning("File update failed: Missing path or version");
+            return;
+        }
+
+        std::string dir_id = body_json["path"];
         std::string key = userID + ":" + dir_id;
 
         json metadata;
@@ -359,7 +374,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             
         }
 
-
         size_t last_slash = file_path.find_last_of('/');
         if (last_slash == std::string::npos)
         {
@@ -388,7 +402,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         if (!parent_res.success)
         {
             res.status = 404;
-            MyLogger::warning("File creation failed: Parent directory not found "+ parent_dir + " " + parent_res.err);
+            MyLogger::warning("File creation failed: Parent directory not found " + parent_dir + " " + parent_res.err);
             res.set_content(R"({"error": "Parent directory not found"})", "application/json");
             return;
         }
@@ -396,10 +410,14 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         try
         {
             parent_metadata = json::parse(parent_res.value);
-            if (parent_metadata.is_string()) {
-                try {
+            if (parent_metadata.is_string())
+            {
+                try
+                {
                     parent_metadata = json::parse(parent_metadata.get<std::string>());
-                } catch (const std::exception &e) {
+                }
+                catch (const std::exception &e)
+                {
                     MyLogger::error("Failed to parse inner metadata: " + std::string(e.what()));
                     res.status = 500;
                     res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
@@ -433,7 +451,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         MyLogger::info("Creating file: " + key);
 
- 
         json file_meta = {
             {"parent_dir", parent_dir},
             {"filename", filename},
@@ -442,14 +459,12 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"size", 0},
             {"version", 1},
             {"deleted", false} // New field to indicate if the file is deleted
-            
+
         };
 
-     
         // update parent metadata
-        auto& files = parent_metadata["files"];
+        auto &files = parent_metadata["files"];
         files.push_back(filename);
-        
 
         // Store both file and updated parent directory metadata
         auto file_ok = Database_handler::set_directory_metadata(key, file_meta.dump());
@@ -464,9 +479,17 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         }
 
         res.set_content(R"({"message": "File created", "metadata": )" + file_meta.dump() + "}", "application/json");
+
+        // Notify the notification server about the new directory
+        json notification_payload = {
+            {"type", "FILE+"},
+            {"user_id", userID},
+            {"path", file_path}};
+
+        Initiation::broadcaster->broadcast(notification_payload);
+
         MyLogger::info("File created: " + key);
     }
-
 }
 
 void update_file(const httplib::Request &req, httplib::Response &res)
@@ -507,10 +530,14 @@ void update_file(const httplib::Request &req, httplib::Response &res)
         try
         {
             metadata = json::parse(kv_response.value);
-            if (metadata.is_string()) {
-                try {
+            if (metadata.is_string())
+            {
+                try
+                {
                     metadata = json::parse(metadata.get<std::string>());
-                } catch (const std::exception &e) {
+                }
+                catch (const std::exception &e)
+                {
                     MyLogger::error("Failed to parse inner metadata: " + std::string(e.what()));
                     res.status = 500;
                     res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
@@ -541,7 +568,6 @@ void update_file(const httplib::Request &req, httplib::Response &res)
                 {"servers", block_servers}};
             res.set_content(response_json.dump(), "application/json");
             MyLogger::info("File update accepted: " + key);
-
         }
         else
         {
@@ -579,7 +605,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"error": "Missing file path parameter"})", "application/json");
         return;
     }
-    
+
     std::string file_path = req.get_param_value("path");
     std::string key = userID + ":" + file_path;
 
@@ -615,7 +641,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
 
     // Get the block server endpoints for this file
     json &block_servers = Database_handler::select_block_server_group(key);
-    json response_json = { {"endpoints", block_servers} };
+    json response_json = {{"endpoints", block_servers}};
 
     res.status = 200;
     res.set_content(response_json.dump(), "application/json");
@@ -632,23 +658,87 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
 
 
 
+// // // Example function to send notification via HTTP POST
+// // void send_notification(nlohmann::json &message) {
+// //     // Iterate over all notification server entries
+// //     for (const auto &server : notification_servers) {
+// //         try {
+// //             // Assuming each 'server' has members "ip" and "port".
+// //             std::string server_ip = server.ip; // or server["ip"] if using json
+// //             unsigned short server_port = server.port; // or static_cast<unsigned short>(server["port"])
+
+// //             // Create an io_context for this connection.
+// //             asio::io_context ioc;
+
+// //             // Resolve the server address and port.
+// //             tcp::resolver resolver(ioc);
+// //             auto const results = resolver.resolve(server_ip, std::to_string(server_port));
+
+// //             // Create a TCP stream using Boost.Beast.
+// //             beast::tcp_stream stream(ioc);
+
+// //             // Establish a connection using one of the endpoints.
+// //             stream.connect(results);
+
+// //             // Prepare the HTTP POST request to the "/broadcast" endpoint.
+// //             http::request<http::string_body> req{http::verb::post, "/broadcast", 11};
+// //             req.set(http::field::host, server_ip);
+// //             req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+// //             req.set(http::field::content_type, "application/json");
+// //             req.body() = message.dump();
+// //             req.prepare_payload();
+
+// //             // Send the HTTP request to the server.
+// //             http::write(stream, req);
+
+// //             // Buffer for reading the response.
+// //             beast::flat_buffer buffer;
+// //             // Container for the response.
+// //             http::response<http::dynamic_body> res;
+// //             // Receive the HTTP response.
+// //             http::read(stream, buffer, res);
+// //             std::cout << "Response from " << server_ip << ": " << res << std::endl;
+
+// //             // Gracefully close the socket.
+// //             beast::error_code ec;
+// //             stream.socket().shutdown(tcp::socket::shutdown_both, ec);
+// //             if (ec && ec != beast::errc::not_connected) {
+// //                 throw beast::system_error{ec};
+// //             }
+// //         } catch (const std::exception &e) {
+// //             std::cerr << "Error sending notification to server: " << e.what() << "\n";
+// //         }
+// //     }
+// // }
+
+// // Function to handle block server confirmation
+// // it will send the confirmation to the notification server
+// void block_server_confirmation(const httplib::Request &req, httplib::Response &res)
+// {
+
+//     MyLogger::info("Received block server confirmation request");
+//     json message = {
+//         {"type", "block_server_confirmation"}
+//     };
+
+//     send_notification(message);
+// }
+
 int main()
 {
 
     httplib::Server svr;
-    
-    svr.set_logger([](const auto& req, const auto& res) {
-        std::cout << "Request: " << req.method << " " << req.path << std::endl;
-    });
+
+    svr.set_logger([](const auto &req, const auto &res)
+                   { std::cout << "Request: " << req.method << " " << req.path << std::endl; });
     Initiation::initialize("config/server_config.json");
     // Routes
     svr.Post("/create-directory", create_directory);
-    svr.Get("/list-directory/(.*)", list_directory);
+    svr.Post("/list-directory", list_directory);
     svr.Post("/create-file", create_file);
     svr.Post("/update-file", update_file);
-    svr.Get("/get-file-endpoints", get_file_endpoints);
-    // svr.Put("/confirmation/(.*)", block_server_confirmation);
-    // Start server
+    svr.Post("/get-file-endpoints", get_file_endpoints);
+    svr.Post("/block-server-confirmation", block_server_confirmation);
 
     MyLogger::info("Server started");
     svr.listen(Initiation::server_ip, Initiation::server_port);
