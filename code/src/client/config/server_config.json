@@ -2,5 +2,5 @@
     "signup_ip": "127.0.0.1",
     "signup_port": 10000,
     "login_ip": "127.0.0.1",
-    "login_port": 15000
+    "login_port": 30000
 }

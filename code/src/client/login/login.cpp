@@ -7,6 +7,9 @@ namespace login
     unsigned short signUpLoadBalancerPort;
     std::string loginLoadBalancerip;
     unsigned short loginLoadBalancerPort;
+    std::string token;
+    std::string username;
+    std::string password;
 
     const std::string server_info_config_path = "config/server_config.json";
 
@@ -23,8 +26,7 @@ namespace login
         MyLogger::info("Login LoadBalancer Port: " + std::to_string(loginLoadBalancerPort));
     }
 
-    void handle_user_info(int argc, char *argv[], json &user_info, std::string &username, std::string &password,
-                          const std::string &user_info_config_path)
+    void handle_user_info(int argc, char *argv[], json &user_info, const std::string &user_info_config_path)
     {
         if (argc == 1)
         {
@@ -113,6 +115,39 @@ namespace login
             return false;
         }
         return false;
+    }
+
+    bool login()
+    {
+        json payload;
+        httplib::Client cli(loginLoadBalancerip, loginLoadBalancerPort);
+        MyLogger::info("Sending login request to " + loginLoadBalancerip + ":" + std::to_string(loginLoadBalancerPort));
+        payload["userID"] = username;
+        payload["password"] = password;
+        auto res = cli.Post("/login", payload.dump(), "application/json");
+        if (res)
+        {
+            if (res->status == 200)
+            {
+                MyLogger::info("Login successful: " + res->body);
+                auto res_json = json::parse(res->body);
+                token = res_json["token"];
+                MyLogger::info("Token: " + token);
+                return true;
+            }
+            else
+            {
+                MyLogger::error("Login failed (" + std::to_string(res->status) + "): " + res->body);
+                std::cout << "Login failed (" << std::to_string(res->status) << "): " << res->body << std::endl;
+                return false;
+            }
+        }
+        else
+        {
+            MyLogger::error("Error: No response from server");
+            std::cerr << "Error: No response from server" << std::endl;
+            return false;
+        }
     }
 
 }
