@@ -107,7 +107,6 @@ namespace Database_handler
 
 }
 
-
 void create_directory(const httplib::Request &req, httplib::Response &res)
 {
     MyLogger::info("Received directory creation request");
@@ -147,14 +146,14 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 return;
             }
 
-            if(utility_functions::is_tombstoned(existing_metadata))
+            if (utility_functions::is_tombstoned(existing_metadata))
             {
                 // If the directory is tombstoned, we can proceed to create it again
                 MyLogger::info("Directory is tombstoned, proceeding to create it again: " + key);
             }
             else
             {
-                
+
                 res.status = 400;
                 res.set_content(R"({"error": "Directory already exists"})", "application/json");
                 return;
@@ -199,14 +198,13 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         }
 
         // Check if parent directory is tombstoned
-        if(utility_functions::is_tombstoned(parent_metadata))  
+        if (utility_functions::is_tombstoned(parent_metadata))
         {
             res.status = 400;
             MyLogger::warning("Parent directory is tombstoned: " + parent_key);
             res.set_content(R"({"error": "Parent directory is tombstoned"})", "application/json");
             return;
         }
-    
 
         // Choose 3 block servers for this directory
 
@@ -312,7 +310,6 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
         }
 
         // if (utility_functions::is_tombstoned(metadata))
-      
 
         res.set_content(metadata.dump(), "application/json");
         MyLogger::info("Listed directory from KV store: " + key);
@@ -367,11 +364,10 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
             // If the file is tombstoned, we can proceed to create it again
             // not doing this
-            
+
             res.status = 400;
             res.set_content(R"({"error": "File already exists"})", "application/json");
             return;
-            
         }
 
         size_t last_slash = file_path.find_last_of('/');
@@ -435,8 +431,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         // Debug print the metadata
         MyLogger::debug("parent metadata: " + parent_metadata.dump());
-       
-       
+
         // Check if parent directory is tombstoned
         // not doing this
 
@@ -648,15 +643,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
     MyLogger::info("Returned endpoints for file: " + key);
 }
 
-
-
-
-
-
 // fucntion for deletion
-
-
-
 
 // // // Example function to send notification via HTTP POST
 // // void send_notification(nlohmann::json &message) {
