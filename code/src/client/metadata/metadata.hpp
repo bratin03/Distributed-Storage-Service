@@ -67,6 +67,10 @@ namespace metadata
   // -------------------------
 
   std::set<std::string> prefix_scan(const std::string &prefix);
+
+  // -------------------------
+  // Remove File/Directory Declaration
+  // -------------------------
   bool removeFileFromDatabase(const std::string &key);
   bool removeDirectoryFromDatabase(const std::string &key);
 
