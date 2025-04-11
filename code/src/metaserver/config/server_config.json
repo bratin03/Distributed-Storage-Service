@@ -5,8 +5,7 @@
     "server_port": 30000,
     
     "notification_servers": ["http://127.0.0.1:7000"],
-    "metadata_servers": ["http://127.0.0.1:8000", "http://127.0.0.1:8001"],
-
+    
     "metastorage_lists":
     {
         "list1": [

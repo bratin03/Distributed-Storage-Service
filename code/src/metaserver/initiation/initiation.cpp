@@ -11,7 +11,6 @@ namespace Initiation {
     inline int server_port;
 
     inline std::vector<std::string> notification_servers;
-    inline std::vector<std::string> metadata_servers;
     inline std::vector<std::vector<std::string>> metastorage_groups;
     inline std::vector<json> blockserver_lists;
 
@@ -28,7 +27,6 @@ namespace Initiation {
         // Load basic config
         server_ip = config["server_ip"];
         server_port = config["server_port"];
-        metadata_servers = config["metadata_servers"].get<std::vector<std::string>>();
         notification_servers = config["notification_servers"].get<std::vector<std::string>>();
 
         // Load and parse public key

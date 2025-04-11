@@ -14,7 +14,6 @@ namespace Initiation
     extern int server_port;
     extern std::string public_key;
 
-    extern std::vector<std::string> metadata_servers;
     extern std::vector<std::string> notification_servers;
     extern std::vector<std::vector<std::string>> metastorage_groups;
     extern std::vector<json> blockserver_lists;
