@@ -1,34 +1,34 @@
-#ifndef METADATA_H
-#define METADATA_H
+#ifndef METADATA_HPP
+#define METADATA_HPP
 
-#include "nlohmann/json.hpp"
-#include "rocksdb/db.h"
-#include <memory>
-#include <set>
 #include <string>
 #include <vector>
+#include <set>
+#include <memory>
+#include "nlohmann/json.hpp"
+#include "rocksdb/db.h"
 
 namespace metadata
 {
 
-  class DBManager
-  {
-  public:
-    static void setDB(std::shared_ptr<rocksdb::DB> db);
-    static std::shared_ptr<rocksdb::DB> getDB();
+  // Set the database instance for the namespace.
+  void setDatabase(std::shared_ptr<rocksdb::DB> db);
 
-  private:
-    static std::shared_ptr<rocksdb::DB> db_instance;
-  };
+  // Retrieve the database instance.
+  std::shared_ptr<rocksdb::DB> getDatabase();
+
+  // ----------------------------------
+  // File_Metadata Class Declaration
+  // ----------------------------------
 
   class File_Metadata
   {
   public:
     File_Metadata();
-    File_Metadata(const std::string &name);
+    explicit File_Metadata(const std::string &name);
     File_Metadata(const std::string &name, uint64_t size,
-                  const std::string &ver, const std::string &hash,
-                  const std::string &content);
+                  const std::string &version, const std::string &content_hash,
+                  const std::string &file_content);
 
     void setFileName(const std::string &name);
     std::string getFileName() const;
@@ -36,6 +36,7 @@ namespace metadata
     bool storeToDatabase();
     bool loadFromDatabase();
 
+  private:
     std::string fileName;
     uint64_t fileSize;
     std::string version;
@@ -43,14 +44,18 @@ namespace metadata
     std::string file_content;
   };
 
+  // -------------------------------------
+  // Directory_Metadata Class Declaration
+  // -------------------------------------
+
   class Directory_Metadata
   {
   public:
     Directory_Metadata();
-    Directory_Metadata(const std::string &name);
+    explicit Directory_Metadata(const std::string &name);
     Directory_Metadata(const std::string &name,
-                        const std::vector<std::string> &files,
-                        const std::vector<std::string> &directories);
+                       const std::vector<std::string> &files,
+                       const std::vector<std::string> &directories);
 
     void setDirectoryName(const std::string &name);
     std::string getDirectoryName() const;
@@ -58,13 +63,18 @@ namespace metadata
     bool storeToDatabase();
     bool loadFromDatabase();
 
+  private:
     std::vector<std::string> files;
     std::vector<std::string> directories;
     std::string directoryName;
   };
 
+  // -------------------------
+  // Prefix Scan Declaration
+  // -------------------------
+
   std::set<std::string> prefix_scan(const std::string &prefix);
 
 } // namespace metadata
 
-#endif // METADATA_H
+#endif // METADATA_HPP

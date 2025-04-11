@@ -150,4 +150,64 @@ namespace login
         }
     }
 
+    bool makeRequest(std::string &ip, unsigned short &port, const std::string &path, const json &payload)
+    {
+        // If token is empty, login first
+        if (token.empty())
+        {
+            login();
+            httplib::Client cli(ip, port);
+            httplib::Headers headers = {
+                {"Authorization", "Bearer " + token},
+                {"Content-Type", "application/json"}};
+            auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
+            if (res)
+            {
+                if (res->status == 200)
+                {
+                    MyLogger::info("Request successful: " + res->body);
+                    return true;
+                }
+                else
+                {
+                    MyLogger::error("Request failed (" + std::to_string(res->status) + "): " + res->body);
+                    std::cout << "Request failed (" << std::to_string(res->status) << "): " << res->body << std::endl;
+                    return false;
+                }
+            }
+            else
+            {
+                MyLogger::error("Error: No response from server");
+                std::cerr << "Error: No response from server" << std::endl;
+                return false;
+            }
+        }
+        // Try once with existing token
+        httplib::Client cli(ip, port);
+        httplib::Headers headers = {
+            {"Authorization", "Bearer " + token},
+            {"Content-Type", "application/json"}};
+        auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
+        if (res)
+        {
+            if (res->status == 200)
+            {
+                MyLogger::info("Request successful: " + res->body);
+                return true;
+            }
+            else if (res->status == 403)
+            {
+                token.clear();
+                return makeRequest(ip, port, path, payload);
+            }
+        }
+        else
+        {
+            MyLogger::error("Error: No response from server");
+            std::cerr << "Error: No response from server" << std::endl;
+            return false;
+        }
+        return false;
+    }
+
 }

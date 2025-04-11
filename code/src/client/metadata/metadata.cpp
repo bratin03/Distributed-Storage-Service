@@ -1,21 +1,16 @@
 #include "metadata.hpp"
-#include "nlohmann/json.hpp"
-#include "rocksdb/db.h"
-#include <memory>
-#include <set>
-#include <string>
-#include <vector>
 
 using json = nlohmann::json;
 
 namespace metadata
 {
 
-  // ---------- DBManager Implementation ----------
+  // Static instance to hold the database pointer.
+  static std::shared_ptr<rocksdb::DB> db_instance = nullptr;
 
-  std::shared_ptr<rocksdb::DB> DBManager::db_instance = nullptr;
-
-  void DBManager::setDB(std::shared_ptr<rocksdb::DB> db)
+  // Sets the database pointer.
+  // Only sets it if it hasn't been set previously.
+  void setDatabase(std::shared_ptr<rocksdb::DB> db)
   {
     if (!db_instance)
     {
@@ -23,37 +18,40 @@ namespace metadata
     }
   }
 
-  std::shared_ptr<rocksdb::DB> DBManager::getDB()
+  // Retrieves the current database pointer.
+  std::shared_ptr<rocksdb::DB> getDatabase()
   {
     return db_instance;
   }
 
-  // ---------- File_Metadata Implementation ----------
+  // ------------------------------
+  // File_Metadata Implementation
+  // ------------------------------
 
   File_Metadata::File_Metadata()
-      : fileName(""), fileSize(0), version(""), content_hash(""),
-        file_content("") {}
+      : fileName(""), fileSize(0), version(""), content_hash(""), file_content("") {}
 
   File_Metadata::File_Metadata(const std::string &name)
-      : fileName(name), fileSize(0), version(""), content_hash(""),
-        file_content("") {}
+      : fileName(name), fileSize(0), version(""), content_hash(""), file_content("") {}
 
   File_Metadata::File_Metadata(const std::string &name, uint64_t size,
                                const std::string &ver, const std::string &hash,
                                const std::string &content)
-      : fileName(name), fileSize(size), version(ver), content_hash(hash),
-        file_content(content) {}
+      : fileName(name), fileSize(size), version(ver), content_hash(hash), file_content(content) {}
 
   void File_Metadata::setFileName(const std::string &name)
   {
     fileName = name;
   }
 
-  std::string File_Metadata::getFileName() const { return fileName; }
+  std::string File_Metadata::getFileName() const
+  {
+    return fileName;
+  }
 
   bool File_Metadata::storeToDatabase()
   {
-    auto db = DBManager::getDB();
+    auto db = getDatabase();
     if (!db)
       return false;
 
@@ -73,7 +71,7 @@ namespace metadata
 
   bool File_Metadata::loadFromDatabase()
   {
-    auto db = DBManager::getDB();
+    auto db = getDatabase();
     if (!db)
       return false;
 
@@ -98,7 +96,9 @@ namespace metadata
     return true;
   }
 
-  // ---------- Directory_Metadata Implementation ----------
+  // --------------------------------------
+  // Directory_Metadata Implementation
+  // --------------------------------------
 
   Directory_Metadata::Directory_Metadata()
       : files(), directories(), directoryName("") {}
@@ -123,7 +123,7 @@ namespace metadata
 
   bool Directory_Metadata::storeToDatabase()
   {
-    auto db = DBManager::getDB();
+    auto db = getDatabase();
     if (!db)
       return false;
 
@@ -141,7 +141,7 @@ namespace metadata
 
   bool Directory_Metadata::loadFromDatabase()
   {
-    auto db = DBManager::getDB();
+    auto db = getDatabase();
     if (!db)
       return false;
 
@@ -162,12 +162,14 @@ namespace metadata
     return true;
   }
 
-  // ---------- Prefix Scan Function ----------
+  // -----------------------------
+  // Prefix Scan Implementation
+  // -----------------------------
 
   std::set<std::string> prefix_scan(const std::string &prefix)
   {
     std::set<std::string> result;
-    auto db = DBManager::getDB();
+    auto db = getDatabase();
     if (!db)
       return result;
 
@@ -183,9 +185,7 @@ namespace metadata
       if (remainder.empty())
         continue;
       if (remainder.find('/') == std::string::npos)
-      {
         result.insert(key);
-      }
     }
     return result;
   }
