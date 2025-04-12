@@ -277,6 +277,7 @@ namespace serverUtils
                         conflictMetadata.version = "0";
                         conflictMetadata.content_hash = fsUtils::computeSHA256Hash(local_file);
                         conflictMetadata.fileSize = local_file.size();
+                        metadata::addFileToDirectory(conflict_filename);
                         if (!conflictMetadata.storeToDatabase())
                         {
                             MyLogger::error("Failed to save conflict file metadata to database for: " + conflict_filename);
