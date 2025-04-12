@@ -189,7 +189,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         {
             std::string dir_name = dir_id.substr(last_slash + 1);
             auto &subdirs = parent_metadata["subdirectories"];
-            subdirs.push_back(dir_name);
+            subdirs.push_back(json(dir_name));
             MyLogger::debug("Updated parent metadata with new subdirectory: " + dir_name);
 
             auto update_parent_result = Database_handler::set_directory_metadata(parent_key, parent_metadata);

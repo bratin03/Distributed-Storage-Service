@@ -138,8 +138,8 @@ bool signupUser(const std::string &username, const std::string &password, const 
         json new_metadata = {
             {"owner", username},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
-            {"subdirectories", json::object()},
-            {"files", json::object()}};
+            {"subdirectories", json::array()},
+            {"files", json::array()}};
         auto val = new_metadata.dump();
         auto RootCreationStatus = distributed_KV::set(servers, RootKey, val);
         if (!RootCreationStatus.success)
