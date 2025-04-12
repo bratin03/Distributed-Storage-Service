@@ -4,9 +4,8 @@
     "server_ip": "127.0.0.3",
     "server_port": 30000,
     
-    "notification_servers": ["http://127.0.0.1:7000"],
-    "metadata_servers": ["http://127.0.0.1:8000", "http://127.0.0.1:8001"],
-
+    "notification_servers": ["http://127.0.0.2:10011","http://127.0.0.2:10012","http://127.0.0.2:10013"],
+    
     "metastorage_lists":
     {
         "list1": [

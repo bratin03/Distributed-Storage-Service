@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include "../../notification_server/AsyncBroadcaster.hpp"
 
 using json = nlohmann::json;
 
@@ -14,12 +15,12 @@ namespace Initiation
     extern int server_port;
     extern std::string public_key;
 
-    extern std::vector<std::string> metadata_servers;
     extern std::vector<std::string> notification_servers;
     extern std::vector<std::vector<std::string>> metastorage_groups;
     extern std::vector<json> blockserver_lists;
+    extern std::unique_ptr<async_broadcast::AsyncBroadcaster>broadcaster;
 
     void initialize(const std::string& server_config_path);
-
+    std::vector<async_broadcast::Server> parseServerUrls(const std::vector<std::string>& urls);
     std::string loadKey(const std::string& filename);
 }
