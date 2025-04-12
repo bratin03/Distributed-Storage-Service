@@ -1,9 +1,11 @@
 #pragma once
 #include <string>
-#include <queue>
+#include <vector>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+
+
 
 class DeletionManager {
 public:
@@ -19,9 +21,10 @@ private:
 
     void process();
 
-    std::queue<std::string> deletion_queue;
+    std::vector<std::string> deletion_queue;
     std::mutex queue_mutex;
     std::condition_variable cv;
     std::thread worker_thread;
     bool stop_thread;
+    const size_t BATCH_SIZE_THRESHOLD ;
 };
