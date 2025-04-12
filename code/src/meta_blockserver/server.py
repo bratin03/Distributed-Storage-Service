@@ -3,9 +3,10 @@ from node import FOLLOWER, LEADER
 from flask import Flask, request, jsonify
 import sys
 import logging
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
 
 app = Flask(__name__)
-
 
 # value_get is the flask handle
 @app.route("/request", methods=['GET'])

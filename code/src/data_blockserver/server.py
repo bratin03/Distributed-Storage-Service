@@ -5,6 +5,8 @@ from flask import Flask, request, jsonify
 import sys
 import logging
 import json
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
 
 app = Flask(__name__)
 
