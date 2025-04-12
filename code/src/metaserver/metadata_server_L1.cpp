@@ -583,17 +583,22 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
     MyLogger::info("Received request to get file endpoints");
     std::string userID;
     if (!Authentication::authenticate_request(req, res, userID))
+    return;
+
+    json body;
+    try
     {
-        MyLogger::warning("Authentication failed during endpoint retrieval");
-        if (res.body.empty())
-        {
-            res.status = 401;
-            res.set_content(R"({"error": "Authentication failed"})", "application/json");
-        }
+        body = json::parse(req.body);
+    }
+    catch (const std::exception &e)
+    {
+        MyLogger::error("Failed to parse JSON body: " + std::string(e.what()));
+        res.status = 400;
+        res.set_content(R"({"error": "Invalid JSON"})", "application/json");
         return;
     }
 
-    if (!req.has_param("path"))
+    if (!body.contains("path"))
     {
         res.status = 400;
         MyLogger::warning("Endpoint request failed: Missing file path parameter");
@@ -601,7 +606,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
         return;
     }
 
-    std::string file_path = req.get_param_value("path");
+    std::string file_path = body["path"];
     std::string key = userID + ":" + file_path;
     MyLogger::debug("Fetching file endpoints for key: " + key);
 
