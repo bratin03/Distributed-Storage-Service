@@ -101,7 +101,7 @@ def value_put():
                 result = n.handle_put(new_payload)
                 if result:
                     reply = {"code": "success", "payload": new_payload}
-                    notification_handler({"user_id": userID, "file_path": filePath, "action": "create"})
+                    notification_handler({"user_id": userID, "path": filePath})
                 else:
                     reply = {"code": "fail", "message": "Creation failed"}
 
@@ -122,7 +122,7 @@ def value_put():
                 result = n.handle_put(new_payload)
                 if result:
                     reply = {"code": "success", "payload": new_payload}
-                    notification_handler({"user_id": userID, "file_path": filePath, "action": "update"})
+                    notification_handler({"user_id": userID, "path": filePath})
                 else:
                     reply = {"code": "fail", "message": "Creation failed"}
 
