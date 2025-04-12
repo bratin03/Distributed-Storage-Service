@@ -12,7 +12,12 @@ LDFLAGS = -L/usr/lib -lssl -lcrypto -lpthread -lhiredis -lcurl -pg
 METASERVER_TARGET = metaserver.out
 
 # Source files
-SRCS = metadata_server_L1.cpp authentication/authentication.cpp initiation/initiation.cpp database_handler/database_handler.cpp
+SRCS =	metadata_server_L1.cpp \
+		authentication/authentication.cpp \
+		initiation/initiation.cpp \
+		database_handler/database_handler.cpp \
+		deletion_manager/deletion_manager.cpp
+ 
 
 # Object files
 OBJS = $(SRCS:.cpp=.o)

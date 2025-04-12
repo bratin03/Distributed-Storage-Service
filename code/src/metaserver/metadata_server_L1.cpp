@@ -12,11 +12,12 @@ work ->
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 
 // Internal modules
-#include "logger/Mylogger.h"
+#include "./logger/Mylogger.h"
 #include "./initiation/initiation.hpp"
 #include "./authentication/authentication.hpp"
+#include "./database_handler/database_handler.hpp"
+#include "./deletion_manager/deletion_manager.hpp"
 #include "../notification_server/notification_server.hpp"
-#include "database_handler/database_handler.hpp"
 
 // Third-party libraries
 #include "../../utils/libraries/cpp-httplib/httplib.h"
@@ -493,6 +494,90 @@ void update_file(const httplib::Request &req, httplib::Response &res)
     }
 }
 
+void delete_path(const httplib::Request &req, httplib::Response &res)
+{
+    MyLogger::info("Received delete path request");
+    std::string userID;
+    if (!Authentication::authenticate_request(req, res, userID))
+        return;
+
+    json body;
+    try
+    {
+        body = json::parse(req.body);
+    }
+    catch (const std::exception &e)
+    {
+        MyLogger::error("Failed to parse JSON body: " + std::string(e.what()));
+        res.status = 400;
+        res.set_content(R"({"error": "Invalid JSON"})", "application/json");
+        return;
+    }
+
+
+    if (!body.contains("path"))
+    {
+        res.status = 400;
+        res.set_content(R"({"error": "Missing path"})", "application/json");
+        return;
+    }
+
+    std::string path = body["path"];
+    std::string key = userID + ":" + path;
+    size_t slash = path.find_last_of('/');
+    std::string parent_dir = path.substr(0, slash);
+    std::string name = path.substr(slash + 1);
+    std::string parent_key = userID + ":" + parent_dir;
+
+    // Is it a file? (Ends with .txt) 
+    bool is_file = path.size() >= 4 && path.substr(path.size() - 4) == ".txt";  // >=4 or >4 ?? doesnt really matter
+
+    auto meta = Database_handler::get_directory_metadata(key);
+    if (!meta.success)
+    {
+        res.status = 404;
+        res.set_content(R"({"error": "Path not found"})", "application/json");
+        return;
+    }
+
+    Database_handler::delete_directory_metadata(key);
+
+    // Update parent directory if parent exists
+    auto parent_meta_res = Database_handler::get_directory_metadata(parent_key);
+    if (parent_meta_res.success)
+    {
+        json parent_meta = json::parse(parent_meta_res.value);
+        if (parent_meta.is_string())
+            parent_meta = json::parse(parent_meta.get<std::string>());
+
+        if (is_file && parent_meta["files"].is_array())
+        {
+            auto &files = parent_meta["files"];
+            files.erase(std::remove(files.begin(), files.end(), name), files.end());  // remove the file from the parent directory
+            DeletionManager::instance.enqueue(key);  // remove the data form the block storage
+
+        }
+        else if (!is_file && parent_meta["subdirectories"].is_array())
+        {
+            auto &dirs = parent_meta["subdirectories"];
+            dirs.erase(std::remove(dirs.begin(), dirs.end(), name), dirs.end()); // remove the directory from the parent directory
+        }
+
+        Database_handler::set_directory_metadata(parent_key, parent_meta);
+    }
+    else{
+        if (is_file)
+        {
+            MyLogger::warning("Parent directory not found for key: " + parent_key + "proceeding to deleting the file anyways");
+            DeletionManager::instance.enqueue(key);  // remove the data form the block storage
+
+        }
+
+    }
+
+    res.set_content(R"({"message": "Path deleted"})", "application/json");
+}
+
 void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
 {
     MyLogger::info("Received request to get file endpoints");
@@ -627,6 +712,12 @@ int main()
     svr.Post("/update-file", update_file);
     svr.Post("/get-file-endpoints", get_file_endpoints);
     svr.Post("/block-server-confirmation", block_server_confirmation);
+    svr.Post("/delete", delete_path);
+     // Instantiate the DeletionManager to start the background thread
+    /*
+        instance of deletion manager is already created in deletion_manager.cpp
+        deletion manager is a singleton class
+    */
 
     MyLogger::info("Server started successfully at IP: " + Initiation::server_ip +
                    " Port: " + std::to_string(Initiation::server_port));

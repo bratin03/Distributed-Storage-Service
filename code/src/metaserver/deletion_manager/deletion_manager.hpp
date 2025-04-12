@@ -3,10 +3,7 @@
 #include <queue>
 #include <thread>
 #include <mutex>
-#include <chrono>
 #include <condition_variable>
-#include "../database_handler/database_handler.hpp"
-#include "../logger/Mylogger.hpp"
 
 class DeletionManager {
 public:

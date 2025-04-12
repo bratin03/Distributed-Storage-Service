@@ -1,5 +1,7 @@
-#include "deletion_manager.hpp"
-
+#include "./deletion_manager.hpp"
+#include "../database_handler/database_handler.hpp"
+#include "../logger/Mylogger.h"
+#include <chrono>
 
 DeletionManager DeletionManager::instance;
 
@@ -40,7 +42,7 @@ void DeletionManager::process() {
         MyLogger::info("Deleting block data for key: " + key);
         auto res = Database_handler::delete_blockdata(key);
         if (!res.success) {
-            MyLogger::warning("Failed to delete block data: " + res.err);
+            MyLogger::warning("Failed to delete block data for key " + key + " | error is: "  + res.err);
         }
     }
 }
