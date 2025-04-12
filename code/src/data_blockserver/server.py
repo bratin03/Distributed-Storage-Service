@@ -14,8 +14,16 @@ def value_get():
     payload = request.json["payload"]
     reply = {"code": "fail", "payload": payload}
     if n.status == LEADER:
-        # request handle, reply is a dictionary
-        result = n.handle_get(payload)
+        token = payload["token"]
+        filePath = payload["key"]
+
+        userID = verify_jwt(token)
+        if userID is None:
+            reply = {"code": "fail", "message": "Invalid token"}
+            return jsonify(reply)
+        
+        key = userID + ":" + filePath
+        result = n.handle_get(key)
         if result:
             reply = {"code": "success", "payload": result}
     elif n.status == FOLLOWER:
@@ -30,27 +38,46 @@ def value_put():
     reply = {"code": "fail"}
 
     if n.status == LEADER:
-        new_payload = payload.copy()
-        new_payload["value"] = json.loads(new_payload["value"])
-        token = new_payload["value"].get("token")
+        payload["value"] = json.loads(payload["value"])
+
+        token = payload["token"]
+        filePath = payload["key"]
 
         userID = verify_jwt(token)
         if userID is None:
             reply = {"code": "fail", "message": "Invalid token"}
             return jsonify(reply)
         
-        existing_payload = n.handle_get(payload)
+        new_version = payload["value"]["version_number"]
 
-        if (
-            existing_payload is not None
-            and existing_payload["value"] != "__DELETE__"
-            and new_payload["value"] != "__DELETE__"
-        ):
+        key = userID + ":" + filePath
+        existing_payload = n.handle_get(key)
 
-            existing_value = json.loads(existing_payload["value"])
-            existing_version = int(existing_value["version_number"])
+        # deletion of file
+        if payload["value"] == "__DELETE__":
+            new_payload = {"key": key, "value": "__DELETE__"}
+            result =  n.handle_put(new_payload)
+            if result:
+                reply = {"code": "success", "payload": new_payload}
+            else:
+                reply = {"code": "fail", "message": "Deletion failed"}
 
-            new_version = int(new_payload["value"]["version_number"])
+        # creation of file
+        elif existing_payload is None or existing_payload == "__DELETE__":
+            if new_version != "0":
+                reply = {"code": "fail", "message": "Version mismatch"}
+            else : 
+                new_payload = {"key": key, "value": json.dumps(new_payload["value"])}
+                result = n.handle_put(new_payload)
+                if result:
+                    reply = {"code": "success", "payload": new_payload}
+                else:
+                    reply = {"code": "fail", "message": "Creation failed"}
+
+        # update of file     
+        else :
+            existing_payload = json.loads(existing_payload)
+            existing_version = int(existing_payload["version_number"])
 
             print("-->", existing_version, " -- ", new_version)
             if existing_version != new_version:
@@ -59,12 +86,14 @@ def value_put():
             else:
                 new_version += 1
                 new_payload["value"]["version_number"] = str(new_version)
+                
+                new_payload = {"key": key, "value": json.dumps(new_payload["value"])}
+                result = n.handle_put(new_payload)
+                if result:
+                    reply = {"code": "success", "payload": new_payload}
+                else:
+                    reply = {"code": "fail", "message": "Creation failed"}
 
-            new_payload["value"] = json.dumps(new_payload["value"])
-
-        result = n.handle_put(new_payload)
-        if result:
-            reply = {"code": "success", "payload": new_payload}
     elif n.status == FOLLOWER:
         # redirect request
         payload["message"] = n.leader

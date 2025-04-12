@@ -166,10 +166,10 @@ namespace distributed_KV
      *         - value: the retrieved value if successful.
      *         - err: an error message if the key does not exist or an error occurred.
      */
-    Response get(const std::vector<std::string> &servers, const std::string &key)
+    Response get(const std::vector<std::string> &servers, const std::string &key,const std::string &token)
     {
         printf("Getting key: %s\n", key.c_str());
-        nlohmann::json payload = {{"key", key}};
+        nlohmann::json payload = {{"key", key},{"token",token}};
         nlohmann::json message = {{"type", "get"}, {"payload", payload}};
         Response res = tryServers(servers, "get", message);
         if (res.success)
@@ -219,10 +219,10 @@ namespace distributed_KV
      *         - value: the response from the server if applicable.
      *         - err: an error message if the operation failed.
      */
-    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &value)
+    Response set(const std::vector<std::string> &servers, const std::string &key,const std::string &token, const std::string &value)
     {
         printf("Setting key: %s with value: %s\n", key.c_str(), value.c_str());
-        nlohmann::json payload = {{"key", key}, {"value", value}};
+        nlohmann::json payload = {{"key", key},{"token",token}, {"value", value}};
         nlohmann::json message = {{"type", "put"}, {"payload", payload}};
         return tryServers(servers, "put", message);
     }
@@ -240,9 +240,9 @@ namespace distributed_KV
      *         - value: the response from the server if applicable.
      *         - err: an error message if the operation failed.
      */
-    Response del(const std::vector<std::string> &servers, const std::string &key)
+    Response del(const std::vector<std::string> &servers, const std::string &key,const std::string &token)
     {
-        return set(servers, key, DELETE_VALUE);
+        return set(servers, key,token, DELETE_VALUE);
     }
 
     // A simple response structure for file-based operations.
@@ -280,9 +280,8 @@ namespace distributed_KV
             nlohmann::json j;
             j["version_number"] = version;
             j["data"] = file_content;
-            j["token"] = token;
             // Use filePath as the key
-            Response setResp = set(servers, filePath, j.dump());
+            Response setResp = set(servers, filePath,token, j.dump());
             response.success = setResp.success;
             if (setResp.success)
             {
@@ -309,8 +308,7 @@ namespace distributed_KV
     )
     {
         FileKVResponse response;
-        nlohmann::json j = {{"token", token}, {"path", filePath}};
-        Response getResp = get(servers,j.dump());
+        Response getResp = get(servers,filePath,token);
         if (getResp.success)
         {
             try
@@ -339,10 +337,12 @@ namespace distributed_KV
 
     // Deletes the key (file path) from the distributed key–value store.
     inline FileKVResponse deleteFile(const std::vector<std::string> &servers,
-                                     const std::string &filePath)
+                                     const std::string &filePath,
+                                     const std::string &token)
     {
         FileKVResponse response;
-        Response delResp = del(servers, filePath);
+
+        Response delResp = del(servers, filePath,token);
         response.success = delResp.success;
         if (delResp.success)
         {
