@@ -101,6 +101,8 @@ def value_put():
             if new_version != "0":
                 reply = {"code": "fail", "message": "Version mismatch"}
             else : 
+                new_version = int(new_version) + 1
+                payload["value"]["version_number"] = str(new_version)
                 new_payload = {"key": key, "value": json.dumps(payload["value"])}
                 result = n.handle_put(new_payload)
                 if result:
