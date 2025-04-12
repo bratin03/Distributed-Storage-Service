@@ -29,10 +29,10 @@ namespace metadata
   // ------------------------------
 
   File_Metadata::File_Metadata()
-      : fileName(""), fileSize(0), version(""), content_hash(""), file_content("") {}
+      : fileName(""), fileSize(0), version("0"), content_hash(""), file_content("") {}
 
   File_Metadata::File_Metadata(const std::string &name)
-      : fileName(name), fileSize(0), version(""), content_hash(""), file_content("") {}
+      : fileName(name), fileSize(0), version("0"), content_hash(""), file_content("") {}
 
   File_Metadata::File_Metadata(const std::string &name, uint64_t size,
                                const std::string &ver, const std::string &hash,

@@ -185,6 +185,7 @@ namespace boot
         {
             MyLogger::info("Sending file: " + file_key);
             serverUtils::createFile(file_key);
+            serverUtils::uploadFile(file_key);
         }
 
         for (const auto &subdir_key : dir_metadata.directories)

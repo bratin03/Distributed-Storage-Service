@@ -56,6 +56,27 @@ namespace serverUtils
             return false;
         }
         auto content = fsUtils::readTextFile(file_key);
+        auto version = fileMetadata.version;
+        if (login::token.empty())
+        {
+            login::login();
+            if (login::token.empty())
+            {
+                MyLogger::error("Failed to obtain login token.");
+                return false;
+            }
+        }
+        auto response = distributed_KV::setFile(endpoints, file_key, content, version, login::token);
+        if(response.success)
+        {
+            MyLogger::info("File uploaded successfully to: " + file_key);
+            return true;
+        }
+        else
+        {
+            MyLogger::error("Failed to upload file: " + response.err);
+            return false;
+        }
     }
 
     std::vector<std::string> getFileEndpoints(const std::string &file_key)
