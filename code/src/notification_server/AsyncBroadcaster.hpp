@@ -96,12 +96,12 @@ namespace async_broadcast
                 threads.emplace_back(sendBroadcastRequest, server, message);
             }
 
-            // Join all threads so that broadcast returns only after all requests finish.
+            // Detach all threads to allow them to run independently.
             for (auto &t : threads)
             {
                 if (t.joinable())
                 {
-                    t.join();
+                    t.detach();
                 }
             }
         }

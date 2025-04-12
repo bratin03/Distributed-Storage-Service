@@ -6,6 +6,7 @@
 #include "../metadata/metadata.hpp"
 #include <nlohmann/json.hpp>
 #include "../login/login.hpp"
+#include "../fsUtils/fsUtils.hpp"
 
 using json = nlohmann::json;
 

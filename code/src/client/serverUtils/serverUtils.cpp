@@ -42,19 +42,20 @@ namespace serverUtils
 
     bool uploadFile(const std::string &file_key)
     {
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/get-file-endpoints", json{{"path", file_key}});
-        if (resp == nullptr)
+
+        metadata::File_Metadata fileMetadata(file_key);
+        if (!fileMetadata.loadFromDatabase())
         {
-            MyLogger::error("Failed to get file endpoints for: " + file_key);
+            MyLogger::error("Failed to load file metadata from database for: " + file_key);
             return false;
         }
-        else
+        auto endpoints = getFileEndpoints(file_key);
+        if (endpoints.empty())
         {
-            MyLogger::debug("Response from get file endpoints: " + resp.dump(4));
+            MyLogger::error("No endpoints available for file: " + file_key);
+            return false;
         }
-        //
-
-        return false;
+        auto content = fsUtils::readTextFile(file_key);
     }
 
     std::vector<std::string> getFileEndpoints(const std::string &file_key)
