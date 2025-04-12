@@ -39,4 +39,22 @@ namespace serverUtils
         }
         return resp;
     }
+
+    bool uploadFile(const std::string &file_key)
+    {
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/get-file-endpoints", json{{"path", file_key}});
+        if (resp == nullptr)
+        {
+            MyLogger::error("Failed to get file endpoints for: " + file_key);
+            return false;
+        }
+        else
+        {
+            MyLogger::debug("Response from get file endpoints: " + resp.dump(4));
+        }
+
+        return false;
+    }
+
+
 } // namespace serverUtils

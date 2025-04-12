@@ -169,7 +169,7 @@ namespace login
             httplib::Headers headers = {
                 {"Authorization", "Bearer " + token},
                 {"Content-Type", "application/json"}};
-            MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path);
+            MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path + "Payload: " + payload.dump());
             auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
             if (res)
             {
@@ -198,7 +198,7 @@ namespace login
         httplib::Headers headers = {
             {"Authorization", "Bearer " + token},
             {"Content-Type", "application/json"}};
-        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path);
+        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path + "Payload: " + payload.dump());
         auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
         if (res)
         {
@@ -209,6 +209,7 @@ namespace login
             }
             else if (res->status == 403)
             {
+                MyLogger::error("Request failed (" + std::to_string(res->status) + "): " + res->body);
                 token.clear();
                 return makeRequest(ip, port, path, payload); // Retry with new token
             }

@@ -21,6 +21,7 @@ namespace login
     extern unsigned short metaLoadBalancerPort;
     extern std::string username;
     extern std::string password;
+    extern std::string token;
 }
 
 #endif // LOGIN_HPP

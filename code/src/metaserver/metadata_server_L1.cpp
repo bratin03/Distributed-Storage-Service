@@ -149,7 +149,14 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         {
             // Update parent metadata
             auto &subdirs = parent_metadata["subdirectories"];
-            subdirs.push_back(json(dir_id));
+            if (!subdirs.is_array())
+            {
+                res.status = 500;
+                MyLogger::error("Parent metadata subdirectories is not an array for key: " + parent_key);
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+                return;
+            }
+            subdirs.push_back(dir_id);
             MyLogger::debug("Updated parent metadata with new subdirectory: " + dir_id);
 
             auto update_parent_result = Database_handler::set_directory_metadata(parent_key, parent_metadata);
@@ -173,7 +180,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             {"user_id", userID},
             {"path", dir_id}};
         MyLogger::debug("Broadcasting notification for new directory: " + dir_id);
-        Initiation::broadcaster->broadcast(notification_payload);
+        // Initiation::broadcaster->broadcast(notification_payload);
     }
     catch (const std::exception &e)
     {
@@ -383,7 +390,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"user_id", userID},
             {"path", file_path}};
         MyLogger::debug("Broadcasting notification for new file: " + file_path);
-        Initiation::broadcaster->broadcast(notification_payload);
+        // Initiation::broadcaster->broadcast(notification_payload);
     }
     catch (const std::exception &e)
     {
@@ -668,7 +675,7 @@ void block_server_confirmation(const httplib::Request &req, httplib::Response &r
             {"type", "FILE+"},
             {"user_id", userID},
             {"path", file_path}};
-        Initiation::broadcaster->broadcast(notification_payload);
+        // Initiation::broadcaster->broadcast(notification_payload);
         MyLogger::info("Block server confirmation processed for file: " + file_path);
         res.status = 200;
         res.set_content(R"({"message": "Block server confirmation received"})", "application/json");

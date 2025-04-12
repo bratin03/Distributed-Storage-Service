@@ -150,6 +150,7 @@ namespace boot
             {
                 MyLogger::info("File not found in remote directory, sending: " + file_key);
                 serverUtils::createFile(file_key);
+                serverUtils::uploadFile(file_key);
             }
         }
         // Look for subdirectories that are in the database but not in the remote directory
