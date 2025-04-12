@@ -96,4 +96,21 @@ namespace boot
             }
         }
     }
+    void localToRemote()
+    {
+        MyLogger::info("Starting local to remote synchronization...");
+        auto dir_key = fsUtils::buildKeyfromFullPath(fsUtils::g_basePath);
+        if (dir_key.back() == '/')
+            dir_key.pop_back();
+        localToRemoteDirCheck(dir_key);
+    }
+    void localToRemoteDirCheck(const std::string &dir_key)
+    {
+        MyLogger::info("Checking remote directory: " + dir_key);
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
+        if (resp == nullptr)
+        {
+            MyLogger::error("Failed to get response from remote directory check for: " + dir_key);
+        }
+    }
 }

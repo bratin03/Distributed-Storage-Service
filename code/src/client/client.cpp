@@ -51,5 +51,7 @@ int main(int argc, char *argv[])
 
     boot::localSync();
 
+    boot::localToRemote();
+
     return 0;
 }

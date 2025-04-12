@@ -7,6 +7,8 @@ namespace login
     unsigned short signUpLoadBalancerPort;
     std::string loginLoadBalancerip;
     unsigned short loginLoadBalancerPort;
+    std::string metaLoadBalancerip;
+    unsigned short metaLoadBalancerPort;
     std::string token;
     std::string username;
     std::string password;
@@ -20,10 +22,15 @@ namespace login
         signUpLoadBalancerPort = ConfigReader::get_config_short("signup_port", server_info);
         loginLoadBalancerip = ConfigReader::get_config_string("login_ip", server_info);
         loginLoadBalancerPort = ConfigReader::get_config_short("login_port", server_info);
+        metaLoadBalancerip = ConfigReader::get_config_string("metaserver_ip", server_info);
+        metaLoadBalancerPort = ConfigReader::get_config_short("metaserver_port", server_info);
+
         MyLogger::info("SignUp LoadBalancer IP: " + signUpLoadBalancerip);
         MyLogger::info("SignUp LoadBalancer Port: " + std::to_string(signUpLoadBalancerPort));
         MyLogger::info("Login LoadBalancer IP: " + loginLoadBalancerip);
         MyLogger::info("Login LoadBalancer Port: " + std::to_string(loginLoadBalancerPort));
+        MyLogger::info("Meta LoadBalancer IP: " + metaLoadBalancerip);
+        MyLogger::info("Meta LoadBalancer Port: " + std::to_string(metaLoadBalancerPort));
     }
 
     void handle_user_info(int argc, char *argv[], json &user_info, const std::string &user_info_config_path)
@@ -150,8 +157,9 @@ namespace login
         }
     }
 
-    bool makeRequest(std::string &ip, unsigned short &port, const std::string &path, const json &payload)
+    json makeRequest(std::string &ip, unsigned short &port, const std::string &path, const json &payload)
     {
+        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path);
         // If token is empty, login first
         if (token.empty())
         {
@@ -166,22 +174,23 @@ namespace login
                 if (res->status == 200)
                 {
                     MyLogger::info("Request successful: " + res->body);
-                    return true;
+                    return json::parse(res->body); // Parse response body to JSON and return it
                 }
                 else
                 {
                     MyLogger::error("Request failed (" + std::to_string(res->status) + "): " + res->body);
                     std::cout << "Request failed (" << std::to_string(res->status) << "): " << res->body << std::endl;
-                    return false;
+                    return nullptr; // Return nullptr if failed
                 }
             }
             else
             {
                 MyLogger::error("Error: No response from server");
                 std::cerr << "Error: No response from server" << std::endl;
-                return false;
+                return nullptr; // Return nullptr if no response from server
             }
         }
+
         // Try once with existing token
         httplib::Client cli(ip, port);
         httplib::Headers headers = {
@@ -193,21 +202,21 @@ namespace login
             if (res->status == 200)
             {
                 MyLogger::info("Request successful: " + res->body);
-                return true;
+                return json::parse(res->body); // Parse response body to JSON and return it
             }
             else if (res->status == 403)
             {
                 token.clear();
-                return makeRequest(ip, port, path, payload);
+                return makeRequest(ip, port, path, payload); // Retry with new token
             }
         }
         else
         {
             MyLogger::error("Error: No response from server");
             std::cerr << "Error: No response from server" << std::endl;
-            return false;
+            return nullptr; // Return nullptr if no response from server
         }
-        return false;
+        return nullptr; // Return nullptr on other failures
     }
 
 }
