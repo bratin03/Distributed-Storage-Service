@@ -157,7 +157,32 @@ namespace serverUtils
         if (response.success)
         {
             json response_json = json::parse(response.value);
-            MyLogger::debug("Response from fetch file: " + response_json.dump(4));
+            // data and version_number are the keys in the JSON object
+            if (response_json.contains("data") && response_json.contains("version_number"))
+            {
+                std::string file_content = response_json["data"];
+                std::string version_number = response_json["version_number"];
+                // Save the file content to the local file system
+                fsUtils::createTextFile(file_key, file_content);
+                MyLogger::info("File fetched successfully: " + file_key);
+                // Update the metadata in the database
+                metadata::File_Metadata fileMetadata(file_key);
+                fileMetadata.file_content = file_content;
+                fileMetadata.version = version_number;
+                fileMetadata.content_hash = fsUtils::computeSHA256Hash(file_content);
+                fileMetadata.fileSize = file_content.size();
+                if (!fileMetadata.storeToDatabase())
+                {
+                    MyLogger::error("Failed to save file metadata to database for: " + file_key);
+                    return false;
+                }
+                MyLogger::info("File metadata updated in database for: " + file_key);
+                return true;
+            }
+            else
+            {
+                MyLogger::error("Invalid response format for file: " + file_key);
+            }
         }
         else
         {
