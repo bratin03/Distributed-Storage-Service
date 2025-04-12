@@ -7,6 +7,12 @@ import logging
 import json
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("requests").setLevel(logging.WARNING)
+import configparser
+import requests
+
+# Load configuration from the config.ini file
+config = configparser.ConfigParser()
+config.read("config.ini")
 
 app = Flask(__name__)
 
@@ -33,6 +39,28 @@ def value_get():
         reply["payload"]["message"] = n.leader
     return jsonify(reply)
 
+
+# Retrieve the IP address and port from the configuration file.
+meta_server_ip = config.get("meta_server", "ip", fallback="127.0.0.1")
+meta_server_port = config.get("meta_server", "port", fallback="5000")
+
+def notification_handler(message):
+    """
+    Sends a notification to the block server confirmation route.
+
+    Parameters:
+        message (dict): A dictionary containing notification data.
+    """
+    # Construct the URL to hit the /block-server-confirmation route
+    url = f"http://{meta_server_ip}:{meta_server_port}/block-server-confirmation"
+
+    try:
+        # Send a POST request with the message as JSON payload.
+        response = requests.post(url, json=message)
+        response.raise_for_status()  # Raises an HTTPError if the status is 4xx or 5xx.
+        print(f"Notification sent successfully to {url}. Response: {response.text}")
+    except requests.RequestException as e:
+        print(f"Failed to send notification to {url}. Error: {e}")
 
 @app.route("/request", methods=["PUT"])
 def value_put():
@@ -73,6 +101,7 @@ def value_put():
                 result = n.handle_put(new_payload)
                 if result:
                     reply = {"code": "success", "payload": new_payload}
+                    notification_handler({"user_id": userID, "file_path": filePath, "action": "create"})
                 else:
                     reply = {"code": "fail", "message": "Creation failed"}
 
@@ -93,6 +122,7 @@ def value_put():
                 result = n.handle_put(new_payload)
                 if result:
                     reply = {"code": "success", "payload": new_payload}
+                    notification_handler({"user_id": userID, "file_path": filePath, "action": "update"})
                 else:
                     reply = {"code": "fail", "message": "Creation failed"}
 
