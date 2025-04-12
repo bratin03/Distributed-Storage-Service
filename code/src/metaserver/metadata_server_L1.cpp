@@ -118,7 +118,20 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         try
         {
             parent_metadata = json::parse(parent_get_result.value);
-            MyLogger::debug("Parent metadata: " + parent_metadata.dump());
+            if (parent_metadata.is_string())
+            {
+                try
+                {
+                    parent_metadata = json::parse(parent_metadata.get<std::string>());
+                }
+                catch (const std::exception &e)
+                {
+                    MyLogger::error("Failed to parse inner metadata for parent directory key: " + parent_key + " | Exception: " + std::string(e.what()));
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
+                    return;
+                }
+            }
         }
         catch (const std::exception &e)
         {
@@ -145,7 +158,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         }
 
         // Update parent directory metadata to include the new directory.
-        if (!parent_key.empty())
+        if (!parent_key.empty())  // check required?????
         {
             // Update parent metadata
             auto &subdirs = parent_metadata["subdirectories"];
@@ -358,11 +371,11 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         MyLogger::info("Creating file: " + key);
 
         json file_meta = {
-            {"parent_dir", parent_dir},
-            {"filename", file_path},
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
-            {"size", 0},
+            {"parent_dir", parent_dir},
+            {"filename", file_path},
+            {"size", 0},  // any use??
             {"version", 1}};
 
         // Update parent metadata with new file entry.
