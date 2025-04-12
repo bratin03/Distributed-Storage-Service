@@ -110,10 +110,10 @@ namespace boot
         auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
         if (resp == nullptr)
         {
-            MyLogger::error("Failed to get response from remote directory check for: " + dir_key);
+            MyLogger::error("Failed to get response from server for list-directory");
             return;
         }
-        MyLogger::info("Remote directory check response: " + resp.dump());
+        MyLogger::info("Response from server: " + resp.dump());
         // in subdirectories field we have the subdirectories, extract the subdirectories
         std::set<std::string> subdirectories;
         if (resp.contains("subdirectories"))
@@ -121,7 +121,7 @@ namespace boot
             for (const auto &subdir : resp["subdirectories"])
             {
                 subdirectories.insert(subdir);
-                MyLogger::info("Found subdirectory: " + subdir.get<std::string>());
+                MyLogger::info("Found subdirectory in remote: " + subdir.get<std::string>());
             }
         }
         std::set<std::string> files;
@@ -130,7 +130,7 @@ namespace boot
             for (const auto &file : resp["files"])
             {
                 files.insert(file);
-                MyLogger::info("Found file: " + file.get<std::string>());
+                MyLogger::info("Found file in remote: " + file.get<std::string>());
             }
         }
         metadata::Directory_Metadata dir_metadata(dir_key);
