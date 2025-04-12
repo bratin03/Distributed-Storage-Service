@@ -10,19 +10,14 @@ LDFLAGS = -L/usr/lib -lssl -lcrypto -lpthread -lhiredis -lcurl -g -pg -O2
 
 # Targets
 METASERVER_TARGET = metaserver.out
-AUTHSERVER_TARGET = auth_server
-NOFYSERVER_TARGET = notify_server
 
 # Source files
-METASERVER_SRC = metadata_server_L1.cpp authentication/authentication.cpp initiation/initiation.cpp
+METASERVER_SRC = metadata_server_L1.cpp authentication/authentication.cpp initiation/initiation.cpp database_handler/database_handler.cpp
 
-# Default target
-all: $(METASERVER_TARGET)
-
-# Build MetaServer
+# Compile MetaServer
 $(METASERVER_TARGET): $(METASERVER_SRC)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Clean target
 clean:
-	rm -f $(METASERVER_TARGET) $(AUTHSERVER_TARGET) $(NOFYSERVER_TARGET)
+	rm -f $(METASERVER_TARGET)

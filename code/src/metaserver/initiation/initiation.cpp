@@ -46,7 +46,11 @@ namespace Initiation {
         // Load block storage groups (keep as JSONs for now)
         blockserver_lists.clear();
         for (const auto& [key, value] : config["blockstorage_lists"].items()) {
-            blockserver_lists.push_back(value);
+            std::vector<std::string> group;
+            for (const auto& endpoint : value) {
+                group.push_back(endpoint.get<std::string>());
+            }
+            blockserver_lists.push_back(std::move(group));
         }
 
         MyLogger::info("Successfully initialized all config parameters.");

@@ -1,3 +1,16 @@
+/*
+g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -o metadata_service -lssl -lcrypto
+
+
+work -> 
+    notification server integration 
+    block server versioning 
+
+
+*/
+
+
+
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 
 // Internal modules
@@ -5,11 +18,11 @@
 #include "./initiation/initiation.hpp"
 #include "./authentication/authentication.hpp"
 #include "../notification_server/notification_server.hpp"
+#include "database_handler/database_handler.hpp"
 
 // Third-party libraries
 #include "../../utils/libraries/cpp-httplib/httplib.h"
 #include "../../utils/libraries/jwt-cpp/include/jwt-cpp/jwt.h"
-#include "../../utils/Distributed_KV/client_lib/kv.hpp"
 
 // JSON and standard
 #include <nlohmann/json.hpp>
@@ -34,61 +47,10 @@ namespace asio = boost::asio;   // from <boost/asio.hpp>
 using tcp = asio::ip::tcp;
 using json = nlohmann::json;
 
-namespace Database_handler
-{
-    std::vector<std::string> &select_metastorage_group(const std::string &key)
-    {
-        static std::hash<std::string> hasher;
-        size_t idx = hasher(key) % Initiation::metastorage_groups.size();
-        MyLogger::debug("Selecting metastorage group for key: " + key + " | Group index: " + std::to_string(idx));
-        return Initiation::metastorage_groups[idx];
-    }
 
-    json &select_block_server_group(const std::string &key)
-    {
-        static std::hash<std::string> hasher;
-        size_t idx = hasher(key) % Initiation::blockserver_lists.size();
-        MyLogger::debug("Selecting block server group for key: " + key + " | Group index: " + std::to_string(idx));
-        return Initiation::blockserver_lists[idx];
-    }
 
-    distributed_KV::Response get_directory_metadata(const std::string &key)
-    {
-        MyLogger::debug("Getting directory metadata for key: " + key);
-        auto &servers = select_metastorage_group(key);
-        distributed_KV::Response res = distributed_KV::get(servers, key);
-        if (!res.success)
-        {
-            MyLogger::warning("KV GET failed for key: " + key + " | Error: " + res.err);
-            return res;
-        }
-        MyLogger::info("KV GET successful for key: " + key);
-        return res;
-    }
 
-    distributed_KV::Response set_directory_metadata(const std::string &key, const json &metadata)
-    {
-        MyLogger::debug("Setting directory metadata for key: " + key + " | Metadata: " + metadata.dump());
-        std::string value = metadata.dump();
-        distributed_KV::Response res = distributed_KV::set(select_metastorage_group(key), key, value);
-        if (!res.success)
-            MyLogger::warning("KV SET failed for key: " + key + " | Error: " + res.err);
-        else
-            MyLogger::info("KV SET successful for key: " + key);
-        return res;
-    }
 
-    distributed_KV::Response delete_directory_metadata(const std::string &key)
-    {
-        MyLogger::debug("Deleting directory metadata for key: " + key);
-        distributed_KV::Response res = distributed_KV::del(select_metastorage_group(key), key);
-        if (!res.success)
-            MyLogger::warning("KV DELETE failed for key: " + key + " | Error: " + res.err);
-        else
-            MyLogger::info("KV DELETE successful for key: " + key);
-        return res;
-    }
-}
 
 void create_directory(const httplib::Request &req, httplib::Response &res)
 {
@@ -124,20 +86,11 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         auto get_result = Database_handler::get_directory_metadata(key);
         if (get_result.success)
         {
-            MyLogger::warning("Directory already exists for key: " + key);
-            try
-            {
-                existing_metadata = json::parse(get_result.value);
-            }
-            catch (const std::exception &e)
-            {
-                res.status = 500;
-                MyLogger::error("Failed to parse existing directory metadata for key: " + key + " | Exception: " + std::string(e.what()));
-                res.set_content(R"({"error": "Failed to parse existing directory metadata"})", "application/json");
-                return;
-            }
-            MyLogger::debug("Existing directory metadata: " + existing_metadata.dump());
-            res.status = 409;
+            
+            // If the directory is tombstoned, we can proceed to create it again
+            // not doing this
+            MyLogger::warning("Directory already exists: " + key);
+            res.status = 400;
             res.set_content(R"({"error": "Directory already exists"})", "application/json");
             return;
         }
@@ -200,6 +153,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         // Update parent directory metadata to include the new directory.
         if (!parent_key.empty())
         {
+            // Update parent metadata
             std::string dir_name = dir_id.substr(last_slash + 1);
             auto &subdirs = parent_metadata["subdirectories"];
             subdirs.push_back(json(dir_name));
@@ -333,19 +287,11 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         auto get_result = Database_handler::get_directory_metadata(key);
         if (get_result.success)
         {
-            MyLogger::warning("File already exists for key: " + key);
-            try
-            {
-                existing_metadata = json::parse(get_result.value);
-            }
-            catch (const std::exception &e)
-            {
-                res.status = 500;
-                MyLogger::error("Failed to parse existing file metadata for key: " + key + " | Exception: " + std::string(e.what()));
-                res.set_content(R"({"error": "Failed to parse existing file metadata"})", "application/json");
-                return;
-            }
-            res.status = 409;
+            // If the file is tombstoned, we can proceed to create it again
+            // not doing this
+            
+            MyLogger::warning("File already exists: " + key);
+            res.status = 400;
             res.set_content(R"({"error": "File already exists"})", "application/json");
             return;
         }
@@ -400,17 +346,16 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
-        MyLogger::debug("Parent metadata: " + parent_metadata.dump());
-        // Check for duplicate file in the parent's file list.
-        if (parent_metadata["files"].contains(filename))
-        {
-            res.status = 409;
-            MyLogger::warning("File already exists in parent directory: " + filename);
-            res.set_content(R"({"error": "File already exists"})", "application/json");
-            return;
-        }
+        // Debug print the metadata
+        MyLogger::debug("parent metadata: " + parent_metadata.dump());
+       
+       
+        // Check if parent directory is tombstoned
+        // not doing this
 
-        MyLogger::info("Creating file for key: " + key);
+        // Check for duplicate file : already done at start
+     
+        MyLogger::info("Creating file: " + key);
 
         json file_meta = {
             {"parent_dir", parent_dir},
@@ -526,7 +471,8 @@ void update_file(const httplib::Request &req, httplib::Response &res)
         MyLogger::debug("Current file metadata for key: " + key + " | Data: " + metadata.dump());
         int current_version = metadata.value("version", 1); // Default version 1 if not set
 
-        json &block_servers = Database_handler::select_block_server_group(key);
+        auto &block_servers = Database_handler::select_block_server_group(key);
+
         if (client_version == current_version)
         {
             res.status = 200;
@@ -605,8 +551,13 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
         return;
     }
 
-    json &block_servers = Database_handler::select_block_server_group(key);
-    json response_json = {{"endpoints", block_servers}};
+    // Check if the file is marked as deleted (tombstoned)
+    // not doing this
+
+    // Get the block server endpoints for this file
+    auto &block_servers = Database_handler::select_block_server_group(key);
+    json response_json = { {"endpoints", block_servers} };  //check this
+
     res.status = 200;
     res.set_content(response_json.dump(), "application/json");
     MyLogger::info("Returned file endpoints for key: " + key);

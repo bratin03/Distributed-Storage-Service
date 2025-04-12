@@ -17,8 +17,8 @@ namespace Initiation
 
     extern std::vector<std::string> notification_servers;
     extern std::vector<std::vector<std::string>> metastorage_groups;
-    extern std::vector<json> blockserver_lists;
     extern std::unique_ptr<async_broadcast::AsyncBroadcaster>broadcaster;
+    extern std::vector<std::vector<std::string>> blockserver_lists;
 
     void initialize(const std::string& server_config_path);
     std::vector<async_broadcast::Server> parseServerUrls(const std::vector<std::string>& urls);

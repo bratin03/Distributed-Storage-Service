@@ -1,8 +1,4 @@
 #include "authentication.hpp"
-#include "../logger/Mylogger.h"   // For MyLogger
-#include "jwt-cpp/jwt.h"        // jwt-cpp
-#include "../initiation/initiation.hpp"       // For Initiation::public_key
-#include <algorithm>            // std::count
 
 namespace Authentication
 {
