@@ -20,9 +20,14 @@
 #include <boost/beast/version.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio.hpp>
-#include <bits/stdc++.h>
+#include <csignal>
+#include <atomic>
+#include <chrono>
+#include <functional>
+#include <string>
+#include <sstream>
+#include <cstdlib>
 
-// Make sure to include these namespaces or qualify appropriately.
 namespace beast = boost::beast; // from <boost/beast.hpp>
 namespace http = beast::http;   // from <boost/beast/http.hpp>
 namespace asio = boost::asio;   // from <boost/asio.hpp>
@@ -92,6 +97,11 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during directory creation");
+        // Ensure that the response is set by authentication itself or set a fallback:
+        if(res.body.empty()) {
+            res.status = 401;
+            res.set_content(R"({"error": "Authentication failed"})", "application/json");
+        }
         return;
     }
 
@@ -127,6 +137,8 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 return;
             }
             MyLogger::debug("Existing directory metadata: " + existing_metadata.dump());
+            res.status = 409;
+            res.set_content(R"({"error": "Directory already exists"})", "application/json");
             return;
         }
 
@@ -168,12 +180,13 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
-        // New directory metadata including owner, timestamp, empty subdirectories, files, and not deleted.
+        // New directory metadata including owner, timestamp, empty subdirectories, files.
         json new_metadata = {
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"subdirectories", json::array()},
-            {"files", json::array()}};
+            {"files", json::array()}
+        };
 
         auto set_result = Database_handler::set_directory_metadata(key, new_metadata);
         if (!set_result.success)
@@ -196,7 +209,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             if (!update_parent_result.success)
             {
                 MyLogger::warning("Directory created but failed to update parent metadata for key: " + parent_key + " | Error: " + update_parent_result.err);
-                // Optional: Implement rollback or further error handling if needed.
+                // Optional: Additional rollback or error handling may be implemented here.
             }
         }
 
@@ -212,7 +225,6 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             {"type", "DIR+"},
             {"user_id", userID},
             {"path", dir_id}};
-
         MyLogger::debug("Broadcasting notification for new directory: " + dir_id);
         Initiation::broadcaster->broadcast(notification_payload);
     }
@@ -231,6 +243,10 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during directory listing");
+        if(res.body.empty()) {
+            res.status = 401;
+            res.set_content(R"({"error": "Authentication failed"})", "application/json");
+        }
         return;
     }
 
@@ -271,6 +287,7 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        res.status = 200;
         res.set_content(metadata.dump(), "application/json");
         MyLogger::info("Successfully listed directory for key: " + key);
     }
@@ -290,6 +307,10 @@ void create_file(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during file creation");
+        if(res.body.empty()){
+            res.status = 401;
+            res.set_content(R"({"error": "Authentication failed"})", "application/json");
+        }
         return;
     }
 
@@ -324,6 +345,9 @@ void create_file(const httplib::Request &req, httplib::Response &res)
                 res.set_content(R"({"error": "Failed to parse existing file metadata"})", "application/json");
                 return;
             }
+            res.status = 409;
+            res.set_content(R"({"error": "File already exists"})", "application/json");
+            return;
         }
 
         size_t last_slash = file_path.find_last_of('/');
@@ -394,7 +418,8 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"size", 0},
-            {"version", 1}};
+            {"version", 1}
+        };
 
         // Update parent metadata with new file entry.
         auto &files = parent_metadata["files"];
@@ -411,6 +436,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        res.status = 200;
         res.set_content(R"({"message": "File created", "metadata": )" + file_meta.dump() + "}", "application/json");
         MyLogger::info("File created successfully for key: " + key);
 
@@ -419,7 +445,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"type", "FILE+"},
             {"user_id", userID},
             {"path", file_path}};
-
         MyLogger::debug("Broadcasting notification for new file: " + file_path);
         Initiation::broadcaster->broadcast(notification_payload);
     }
@@ -439,6 +464,10 @@ void update_file(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during file update");
+        if(res.body.empty()){
+            res.status = 401;
+            res.set_content(R"({"error": "Authentication failed"})", "application/json");
+        }
         return;
     }
 
@@ -533,6 +562,10 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during endpoint retrieval");
+        if(res.body.empty()){
+            res.status = 401;
+            res.set_content(R"({"error": "Authentication failed"})", "application/json");
+        }
         return;
     }
 
@@ -582,25 +615,36 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
 void block_server_confirmation(const httplib::Request &req, httplib::Response &res)
 {
     MyLogger::info("Received block server confirmation request");
-    json body_json = json::parse(req.body);
-    if (!body_json.contains("path") || !body_json.contains("user_id"))
+    try
     {
-        res.status = 400;
-        MyLogger::warning("Block server confirmation failed: Missing 'path' or 'user_id' in request body");
-        res.set_content(R"({"error": "Missing path or user_id"})", "application/json");
-        return;
+        json body_json = json::parse(req.body);
+        if (!body_json.contains("path") || !body_json.contains("user_id"))
+        {
+            res.status = 400;
+            MyLogger::warning("Block server confirmation failed: Missing 'path' or 'user_id' in request body");
+            res.set_content(R"({"error": "Missing path or user_id"})", "application/json");
+            return;
+        }
+
+        std::string file_path = body_json["path"];
+        std::string userID = body_json["user_id"];
+        MyLogger::debug("Processing block server confirmation for file: " + file_path + " by user: " + userID);
+
+        json notification_payload = {
+            {"type", "FILE+"},
+            {"user_id", userID},
+            {"path", file_path}};
+        Initiation::broadcaster->broadcast(notification_payload);
+        MyLogger::info("Block server confirmation processed for file: " + file_path);
+        res.status = 200;
+        res.set_content(R"({"message": "Block server confirmation received"})", "application/json");
     }
-
-    std::string file_path = body_json["path"];
-    std::string userID = body_json["user_id"];
-    MyLogger::debug("Processing block server confirmation for file: " + file_path + " by user: " + userID);
-
-    json notification_payload = {
-        {"type", "FILE+"},
-        {"user_id", userID},
-        {"path", file_path}};
-    Initiation::broadcaster->broadcast(notification_payload);
-    MyLogger::info("Block server confirmation processed for file: " + file_path);
+    catch (const std::exception &e)
+    {
+        res.status = 500;
+        MyLogger::error("Exception in block_server_confirmation: " + std::string(e.what()));
+        res.set_content(R"({"error": "Internal server error"})", "application/json");
+    }
 }
 
 std::atomic<bool> server_running(true);
@@ -651,6 +695,3 @@ int main()
     }
     return 0;
 }
-
-// End of API definitions.
-// Additional APIs (e.g., to get servers, delete, or atomic locking checks) may be added below.

@@ -159,7 +159,6 @@ namespace login
 
     json makeRequest(std::string &ip, unsigned short &port, const std::string &path, const json &payload)
     {
-        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path);
         // If token is empty, login first
         if (token.empty())
         {
@@ -168,6 +167,7 @@ namespace login
             httplib::Headers headers = {
                 {"Authorization", "Bearer " + token},
                 {"Content-Type", "application/json"}};
+            MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path);
             auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
             if (res)
             {
@@ -196,6 +196,7 @@ namespace login
         httplib::Headers headers = {
             {"Authorization", "Bearer " + token},
             {"Content-Type", "application/json"}};
+        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path);
         auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
         if (res)
         {
