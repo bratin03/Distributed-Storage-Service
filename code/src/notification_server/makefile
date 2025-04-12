@@ -3,7 +3,7 @@
 # Compiler and flags.
 CXX         = g++
 CXXFLAGS    = -std=c++17 -Wall -I. -pthread -O2
-LDFLAGS     = -lboost_system -lboost_thread
+LDFLAGS     = -lboost_system -lboost_thread -lcurl -lssl -lcrypto
 
 # Source files for the server executable.
 SERVER_SRCS = server.cpp notification_server.cpp http_listener.cpp
