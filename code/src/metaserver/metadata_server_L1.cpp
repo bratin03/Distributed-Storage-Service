@@ -2,14 +2,12 @@
 g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -o metadata_service -lssl -lcrypto
 
 
-work -> 
-    notification server integration 
-    block server versioning 
+work ->
+    notification server integration
+    block server versioning
 
 
 */
-
-
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 
@@ -47,11 +45,6 @@ namespace asio = boost::asio;   // from <boost/asio.hpp>
 using tcp = asio::ip::tcp;
 using json = nlohmann::json;
 
-
-
-
-
-
 void create_directory(const httplib::Request &req, httplib::Response &res)
 {
     MyLogger::info("Received directory creation request");
@@ -60,7 +53,8 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
     {
         MyLogger::warning("Authentication failed during directory creation");
         // Ensure that the response is set by authentication itself or set a fallback:
-        if(res.body.empty()) {
+        if (res.body.empty())
+        {
             res.status = 401;
             res.set_content(R"({"error": "Authentication failed"})", "application/json");
         }
@@ -86,7 +80,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         auto get_result = Database_handler::get_directory_metadata(key);
         if (get_result.success)
         {
-            
+
             // If the directory is tombstoned, we can proceed to create it again
             // not doing this
             MyLogger::warning("Directory already exists: " + key);
@@ -138,8 +132,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"subdirectories", json::array()},
-            {"files", json::array()}
-        };
+            {"files", json::array()}};
 
         auto set_result = Database_handler::set_directory_metadata(key, new_metadata);
         if (!set_result.success)
@@ -154,10 +147,9 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         if (!parent_key.empty())
         {
             // Update parent metadata
-            std::string dir_name = dir_id.substr(last_slash + 1);
             auto &subdirs = parent_metadata["subdirectories"];
-            subdirs.push_back(json(dir_name));
-            MyLogger::debug("Updated parent metadata with new subdirectory: " + dir_name);
+            subdirs.push_back(json(dir_id));
+            MyLogger::debug("Updated parent metadata with new subdirectory: " + dir_id);
 
             auto update_parent_result = Database_handler::set_directory_metadata(parent_key, parent_metadata);
             if (!update_parent_result.success)
@@ -197,7 +189,8 @@ void list_directory(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during directory listing");
-        if(res.body.empty()) {
+        if (res.body.empty())
+        {
             res.status = 401;
             res.set_content(R"({"error": "Authentication failed"})", "application/json");
         }
@@ -261,7 +254,8 @@ void create_file(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during file creation");
-        if(res.body.empty()){
+        if (res.body.empty())
+        {
             res.status = 401;
             res.set_content(R"({"error": "Authentication failed"})", "application/json");
         }
@@ -289,7 +283,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         {
             // If the file is tombstoned, we can proceed to create it again
             // not doing this
-            
+
             MyLogger::warning("File already exists: " + key);
             res.status = 400;
             res.set_content(R"({"error": "File already exists"})", "application/json");
@@ -308,7 +302,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         std::string parent_dir = file_path.substr(0, last_slash);
         std::string parent_key = userID + ":" + parent_dir;
         json parent_metadata;
-        std::string filename = file_path.substr(last_slash + 1);
         MyLogger::debug("Fetching parent directory metadata for key: " + parent_key);
 
         auto parent_res = Database_handler::get_directory_metadata(parent_key);
@@ -348,28 +341,26 @@ void create_file(const httplib::Request &req, httplib::Response &res)
 
         // Debug print the metadata
         MyLogger::debug("parent metadata: " + parent_metadata.dump());
-       
-       
+
         // Check if parent directory is tombstoned
         // not doing this
 
         // Check for duplicate file : already done at start
-     
+
         MyLogger::info("Creating file: " + key);
 
         json file_meta = {
             {"parent_dir", parent_dir},
-            {"filename", filename},
+            {"filename", file_path},
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"size", 0},
-            {"version", 1}
-        };
+            {"version", 1}};
 
         // Update parent metadata with new file entry.
         auto &files = parent_metadata["files"];
-        files.push_back(filename);
-        MyLogger::debug("Updated parent metadata with new file: " + filename);
+        files.push_back(file_path);
+        MyLogger::debug("Updated parent metadata with new file: " + file_path);
 
         auto file_ok = Database_handler::set_directory_metadata(key, file_meta.dump());
         auto parent_ok = Database_handler::set_directory_metadata(parent_key, parent_metadata.dump());
@@ -409,7 +400,8 @@ void update_file(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during file update");
-        if(res.body.empty()){
+        if (res.body.empty())
+        {
             res.status = 401;
             res.set_content(R"({"error": "Authentication failed"})", "application/json");
         }
@@ -508,7 +500,8 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
     if (!Authentication::authenticate_request(req, res, userID))
     {
         MyLogger::warning("Authentication failed during endpoint retrieval");
-        if(res.body.empty()){
+        if (res.body.empty())
+        {
             res.status = 401;
             res.set_content(R"({"error": "Authentication failed"})", "application/json");
         }
@@ -556,7 +549,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
 
     // Get the block server endpoints for this file
     auto &block_servers = Database_handler::select_block_server_group(key);
-    json response_json = { {"endpoints", block_servers} };  //check this
+    json response_json = {{"endpoints", block_servers}}; // check this
 
     res.status = 200;
     res.set_content(response_json.dump(), "application/json");
