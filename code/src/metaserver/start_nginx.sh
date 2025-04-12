@@ -1,0 +1,1 @@
+sudo nginx -c $(pwd)/nginx/metadata_servers.conf

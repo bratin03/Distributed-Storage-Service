@@ -696,7 +696,7 @@ void shutdown_server(int)
     exit(0);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     signal(SIGINT, shutdown_server);
     signal(SIGTERM, shutdown_server);
@@ -706,7 +706,12 @@ int main()
     svr.set_logger([](const auto &req, const auto &res)
                    { std::cout << "Request: " << req.method << " " << req.path << std::endl; });
     MyLogger::info("Initializing server using configuration file: config/server_config.json");
-    Initiation::initialize("config/server_config.json");
+    if (argc < 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <server_config_path>" << std::endl;
+        return 1;
+    }
+    Initiation::initialize(argv[1]);
 
     // Routing definitions
     svr.Post("/create-directory", create_directory);
