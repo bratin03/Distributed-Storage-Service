@@ -16,6 +16,7 @@ namespace serverUtils
     json createFile(const std::string &file_key);
     bool uploadFile(const std::string &file_key);
     json createDir(const std::string &dir_key);
+    std::vector<std::string> getFileEndpoints(const std::string &file_key);
     extern std::string notificationLoadBalancerip;
     extern unsigned short notificationLoadBalancerPort;
 } // namespace serverUtils

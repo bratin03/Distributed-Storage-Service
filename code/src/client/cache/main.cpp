@@ -1,38 +1,54 @@
 #include "cache.hpp"
 #include <iostream>
-#include <thread>
+#include <vector>
 #include <chrono>
+#include <thread>
 
 int main()
 {
-    // Create a cache with 5-second default TTL and 100 bytes max size
-    cache::Cache myCache(std::chrono::seconds(5), 100);
+    // Create a cache instance with a default TTL of 500ms and a maximum size (in bytes) of 100.
+    cache::Cache myCache(std::chrono::milliseconds(500), 100);
 
-    // Insert a few entries
-    myCache.set("key1", "value1");
-    myCache.set("key2", "value2");
-    myCache.set("key3", "value3");
+    // Create a vector of strings to store as the value.
+    std::vector<std::string> value = {"Hello", "World"};
 
-    // Access and print values
-    std::cout << "key1: " << myCache.get("key1") << std::endl;
-    std::cout << "key2: " << myCache.get("key2") << std::endl;
+    // Set the key "greeting" with the vector value and a custom TTL of 1000ms.
+    myCache.set("greeting", value, std::chrono::milliseconds(1000));
 
-    // Wait for 6 seconds to let TTL expire
-    std::this_thread::sleep_for(std::chrono::seconds(6));
+    // Immediately retrieve and print the value.
+    std::vector<std::string> result = myCache.get("greeting");
+    if (!result.empty())
+    {
+        std::cout << "Cache hit: ";
+        for (const auto &s : result)
+        {
+            std::cout << s << " ";
+        }
+        std::cout << std::endl;
+    }
+    else
+    {
+        std::cout << "Cache miss." << std::endl;
+    }
 
-    std::cout << "After TTL expiration:" << std::endl;
-    std::cout << "key1: " << myCache.get("key1") << std::endl; // Should be empty
-    std::cout << "key2: " << myCache.get("key2") << std::endl; // Should be empty
+    // Wait long enough to let the TTL expire.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
-    // Insert more data to test LRU eviction
-    myCache.set("a", std::string(40, 'A')); // 41 bytes
-    myCache.set("b", std::string(40, 'B')); // 41 bytes
-    myCache.set("c", std::string(40, 'C')); // Should evict "a" due to size limit
-
-    std::cout << "Testing LRU eviction:" << std::endl;
-    std::cout << "a: " << myCache.get("a") << std::endl; // Might be evicted
-    std::cout << "b: " << myCache.get("b") << std::endl; // Should exist
-    std::cout << "c: " << myCache.get("c") << std::endl; // Should exist
+    // Try to get the key "greeting" again after the TTL has expired.
+    result = myCache.get("greeting");
+    if (result.empty())
+    {
+        std::cout << "Cache entry expired." << std::endl;
+    }
+    else
+    {
+        std::cout << "Cache hit: ";
+        for (const auto &s : result)
+        {
+            std::cout << s << " ";
+        }
+        std::cout << std::endl;
+    }
 
     return 0;
 }

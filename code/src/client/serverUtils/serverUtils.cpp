@@ -52,9 +52,53 @@ namespace serverUtils
         {
             MyLogger::debug("Response from get file endpoints: " + resp.dump(4));
         }
+        //
 
         return false;
     }
 
+    std::vector<std::string> getFileEndpoints(const std::string &file_key)
+    {
+        // Check in cache first
+        auto cachedEndpoints = cache_instance->get(file_key);
+        if (!cachedEndpoints.empty())
+        {
+            MyLogger::info("Cache hit for file endpoints: " + file_key);
+            return cachedEndpoints;
+        }
+        auto response = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/get-file-endpoints", json{{"path", file_key}});
+        // Check if the JSON object contains the key "endpoints" and if it's an array.
+        if (response == nullptr)
+        {
+            MyLogger::error("Failed to get file endpoints for: " + file_key);
+            return {};
+        }
+        else
+        {
+            MyLogger::debug("Response from get file endpoints: " + response.dump(4));
+        }
+        // Create a vector to store the endpoints.
+        std::vector<std::string> endpoints;
+        if (response.contains("endpoints") && response["endpoints"].is_array())
+        {
+            // Iterate over the array and extract each endpoint as a string.
+            for (const auto &endpoint : response["endpoints"])
+            {
+                endpoints.push_back(endpoint.get<std::string>());
+            }
+        }
+
+        // Check if the endpoints vector is empty.
+        if (endpoints.empty())
+        {
+            MyLogger::error("No endpoints found for file: " + file_key);
+            return {};
+        }
+
+        // Store the endpoints in the cache with a default TTL.
+        cache_instance->set(file_key, endpoints);
+
+        return endpoints;
+    }
 
 } // namespace serverUtils

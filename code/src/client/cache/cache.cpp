@@ -8,13 +8,6 @@
 namespace cache
 {
 
-    // The basic cached entry containing the value and its expiry time.
-    struct Cache::CacheEntry
-    {
-        std::string value;
-        std::chrono::steady_clock::time_point expireTime;
-    };
-
     class Cache::Impl
     {
     public:
@@ -34,26 +27,37 @@ namespace cache
                 cleanerThread_.join();
         }
 
+        // Helper function to compute the total size of a vector of strings.
+        std::size_t computeValueSize(const std::vector<std::string> &vec)
+        {
+            std::size_t total = 0;
+            for (const auto &s : vec)
+            {
+                total += s.size();
+            }
+            return total;
+        }
+
         // Insert or update a cache entry.
-        void set(const std::string &key, const std::string &value,
+        void set(const std::string &key, const std::vector<std::string> &value,
                  std::chrono::milliseconds ttl)
         {
             std::lock_guard<std::mutex> lock(mutex_);
 
-            // If the key exists already, remove it (and update the current size).
+            // If the key exists already, remove it.
             auto found = cache_.find(key);
             if (found != cache_.end())
             {
-                currentSize_ -= (key.size() + found->second.entry.value.size());
+                currentSize_ -= (key.size() + computeValueSize(found->second.entry.value));
                 lru_.erase(found->second.lruIterator);
                 cache_.erase(found);
             }
 
             // Calculate the expiration time.
             auto expireTime = std::chrono::steady_clock::now() + (ttl.count() > 0 ? ttl : defaultTTL_);
-            std::size_t entrySize = key.size() + value.size();
+            std::size_t entrySize = key.size() + computeValueSize(value);
 
-            // If a single entry exceeds the max cache size, skip caching.
+            // If a single entry exceeds the maximum cache size, skip caching.
             if (entrySize > maxSize_)
             {
                 return;
@@ -68,7 +72,7 @@ namespace cache
                 auto it = cache_.find(oldKey);
                 if (it != cache_.end())
                 {
-                    currentSize_ -= (oldKey.size() + it->second.entry.value.size());
+                    currentSize_ -= (oldKey.size() + computeValueSize(it->second.entry.value));
                     lru_.pop_back();
                     cache_.erase(it);
                 }
@@ -82,22 +86,22 @@ namespace cache
             currentSize_ += entrySize;
         }
 
-        // Retrieve a cache entry (and update its LRU position).
-        std::string get(const std::string &key)
+        // Retrieve a cache entry and update its LRU position.
+        std::vector<std::string> get(const std::string &key)
         {
             std::lock_guard<std::mutex> lock(mutex_);
             auto it = cache_.find(key);
             if (it == cache_.end())
-                return "";
+                return {};
 
-            // Check expiration.
+            // Check if the entry is expired.
             auto now = std::chrono::steady_clock::now();
             if (now >= it->second.entry.expireTime)
             {
-                currentSize_ -= (key.size() + it->second.entry.value.size());
+                currentSize_ -= (key.size() + computeValueSize(it->second.entry.value));
                 lru_.erase(it->second.lruIterator);
                 cache_.erase(it);
-                return "";
+                return {};
             }
             // Update LRU order: move key to the front.
             lru_.erase(it->second.lruIterator);
@@ -107,7 +111,14 @@ namespace cache
         }
 
     private:
-        // Structure to hold both the entry and its LRU list iterator.
+        // Internal structure representing a cache entry with a vector of strings and its expiration time.
+        struct CacheEntry
+        {
+            std::vector<std::string> value;
+            std::chrono::steady_clock::time_point expireTime;
+        };
+
+        // Internal structure to hold a cache entry and its iterator in the LRU list.
         struct CacheValue
         {
             CacheEntry entry;
@@ -115,7 +126,7 @@ namespace cache
         };
 
         std::unordered_map<std::string, CacheValue> cache_;
-        std::list<std::string> lru_; // Front: most recently used, Back: least recently used.
+        std::list<std::string> lru_; // Front: most recently used; back: least recently used.
         std::chrono::milliseconds defaultTTL_;
         std::size_t maxSize_;
         std::size_t currentSize_;
@@ -123,7 +134,7 @@ namespace cache
         bool stopCleaner_;
         std::thread cleanerThread_;
 
-        // Cleaner thread removes expired entries.
+        // Background cleaner thread removes expired entries.
         void cleaner()
         {
             while (true)
@@ -137,7 +148,7 @@ namespace cache
                 {
                     if (now >= it->second.entry.expireTime)
                     {
-                        currentSize_ -= (it->first.size() + it->second.entry.value.size());
+                        currentSize_ -= (it->first.size() + computeValueSize(it->second.entry.value));
                         lru_.erase(it->second.lruIterator);
                         it = cache_.erase(it);
                     }
@@ -150,7 +161,7 @@ namespace cache
         }
     };
 
-    // Public interface definitions.
+    // Public interface implementations.
     Cache::Cache(std::chrono::milliseconds defaultTTL, std::size_t maxSize)
         : impl_(new Impl(defaultTTL, maxSize))
     {
@@ -161,13 +172,13 @@ namespace cache
         delete impl_;
     }
 
-    void Cache::set(const std::string &key, const std::string &value,
+    void Cache::set(const std::string &key, const std::vector<std::string> &value,
                     std::chrono::milliseconds ttl)
     {
         impl_->set(key, value, ttl);
     }
 
-    std::string Cache::get(const std::string &key)
+    std::vector<std::string> Cache::get(const std::string &key)
     {
         return impl_->get(key);
     }
