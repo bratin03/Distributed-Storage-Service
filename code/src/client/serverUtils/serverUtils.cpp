@@ -5,6 +5,18 @@ namespace serverUtils
     std::shared_ptr<cache::Cache> cache_instance = nullptr;
     std::string notificationLoadBalancerip;
     unsigned short notificationLoadBalancerPort;
+    std::string device_id;
+
+    std::string generateConflictFilename(const std::string &path, const std::string &device)
+    {
+        size_t dotPos = path.rfind(".txt");
+        if (dotPos == std::string::npos)
+        {
+            return path + "$" + device + "_conflict$"; // fallback if .txt not found
+        }
+
+        return path.substr(0, dotPos) + "$" + device + "_conflict$" + ".txt";
+    }
 
     void initializeCache(std::chrono::milliseconds defaultTTL, std::size_t maxSize)
     {
@@ -144,7 +156,7 @@ namespace serverUtils
             MyLogger::error("No endpoints available for file: " + file_key);
             return false;
         }
-        if(login::token.empty())
+        if (login::token.empty())
         {
             login::login();
             if (login::token.empty())
@@ -190,6 +202,115 @@ namespace serverUtils
             return false;
         }
         return false;
+    }
+
+    void Conflict(const std::string &file_key)
+    {
+        MyLogger::info("Conflict detected for file: " + file_key);
+        auto local_file = fsUtils::readTextFile(file_key);
+        auto endpoints = getFileEndpoints(file_key);
+        if (endpoints.empty())
+        {
+            MyLogger::error("No endpoints available for file: " + file_key);
+            return;
+        }
+        if (login::token.empty())
+        {
+            login::login();
+            if (login::token.empty())
+            {
+                MyLogger::error("Failed to obtain login token.");
+                return;
+            }
+        }
+        auto response = distributed_KV::getFile(endpoints, file_key, login::token);
+        if (response.success)
+        {
+            json response_json = json::parse(response.value);
+            // data and version_number are the keys in the JSON object
+            if (response_json.contains("data") && response_json.contains("version_number"))
+            {
+                std::string remote_file_content = response_json["data"];
+                std::string remote_version_number = response_json["version_number"];
+                // Compare the local and remote file content
+                if (local_file != remote_file_content)
+                {
+                    MyLogger::info("Conflict detected between local and remote file: " + file_key);
+                    std::string merged_content;
+                    metadata::File_Metadata fileMetadata(file_key);
+                    if (!fileMetadata.loadFromDatabase())
+                    {
+                        MyLogger::error("Failed to load file metadata from database for: " + file_key);
+                    }
+                    auto merge_success = merge::mergeCheck(fileMetadata.file_content, local_file, remote_file_content, merged_content);
+                    if (merge_success)
+                    {
+                        MyLogger::info("Merge successful for file: " + file_key);
+                        fsUtils::createTextFile(file_key, merged_content);
+                        fileMetadata.file_content = merged_content;
+                        fileMetadata.version = remote_version_number;
+                        fileMetadata.content_hash = fsUtils::computeSHA256Hash(merged_content);
+                        fileMetadata.fileSize = merged_content.size();
+                        uploadFile(file_key);
+                    }
+                    else
+                    {
+                        MyLogger::warning("Merge not automergeable for file: " + file_key);
+                        fsUtils::createTextFile(file_key, remote_file_content);
+                        MyLogger::info("Local file replaced with remote version: " + file_key);
+                        auto conflict_filename = generateConflictFilename(file_key, device_id);
+                        fsUtils::createTextFile(conflict_filename, local_file);
+                        MyLogger::info("Conflict file created: " + conflict_filename);
+                        // Update the metadata in the database
+                        fileMetadata.file_content = remote_file_content;
+                        fileMetadata.version = remote_version_number;
+                        fileMetadata.content_hash = fsUtils::computeSHA256Hash(remote_file_content);
+                        fileMetadata.fileSize = remote_file_content.size();
+                        if (!fileMetadata.storeToDatabase())
+                        {
+                            MyLogger::error("Failed to save file metadata to database for: " + file_key);
+                        }
+                        MyLogger::info("File metadata updated in database for: " + file_key);
+                        // Send the conflicted copy to the server
+                        metadata::File_Metadata conflictMetadata(conflict_filename);
+                        conflictMetadata.file_content = local_file;
+                        conflictMetadata.version = "0";
+                        conflictMetadata.content_hash = fsUtils::computeSHA256Hash(local_file);
+                        conflictMetadata.fileSize = local_file.size();
+                        if (!conflictMetadata.storeToDatabase())
+                        {
+                            MyLogger::error("Failed to save conflict file metadata to database for: " + conflict_filename);
+                        }
+                        MyLogger::info("Conflict file metadata updated in database for: " + conflict_filename);
+                        createFile(conflict_filename);
+                        uploadFile(conflict_filename);
+                    }
+                }
+                else
+                {
+                    MyLogger::info("No conflict detected for file: " + file_key);
+                    // Update the local file with the remote version
+                    metadata::File_Metadata fileMetadata(file_key);
+                    fileMetadata.file_content = remote_file_content;
+                    fileMetadata.version = remote_version_number;
+                    fileMetadata.content_hash = fsUtils::computeSHA256Hash(remote_file_content);
+                    fileMetadata.fileSize = remote_file_content.size();
+                    if (!fileMetadata.storeToDatabase())
+                    {
+                        MyLogger::error("Failed to save file metadata to database for: " + file_key);
+                    }
+                    MyLogger::info("File metadata updated in database for: " + file_key);
+                }
+            }
+            else
+            {
+                MyLogger::error("Invalid response format for file: " + file_key);
+            }
+        }
+        else
+        {
+            MyLogger::error("Failed to fetch file: " + response.err);
+        }
     }
 
 } // namespace serverUtils

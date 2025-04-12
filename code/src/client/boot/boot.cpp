@@ -260,7 +260,8 @@ namespace boot
                 }
                 else
                 {
-                    MyLogger::info("File found locally, no need to fetch: " + key);
+                    // Check for conflicts
+                    serverUtils::Conflict(key);
                 }
             }
         }
@@ -316,6 +317,7 @@ namespace boot
                 auto key = file.get<std::string>();
                 dir_metadata.files.push_back(key);
                 MyLogger::info("Fetching file: " + key);
+                serverUtils::fetchNewFile(key);
             }
         }
         else

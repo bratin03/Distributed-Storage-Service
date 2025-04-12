@@ -51,6 +51,8 @@ int main(int argc, char *argv[])
 
     // Initialize file system utilities.
     auto monitoring_path = ConfigReader::get_config_string("monitoring_path", user_info);
+    serverUtils::device_id = ConfigReader::get_config_string("device_id", user_info);
+
     fsUtils::initialize(monitoring_path, login::username);
 
     serverUtils::initializeCache();

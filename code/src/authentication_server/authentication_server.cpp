@@ -19,6 +19,7 @@ redisContext *redis_ctx = nullptr;
 std::string PRIVATE_KEY;
 std::string server_ip;
 int server_port;
+
 // Load RSA Private Key
 std::string loadKey(const std::string &filename)
 {
@@ -112,7 +113,6 @@ json authenticateUser(const std::string &userID, const std::string &password)
 
 int main(int argc, char *argv[])
 {
-
     std::string config_path = "auth_config.json";
     if (argc > 1)
     {
@@ -147,10 +147,13 @@ int main(int argc, char *argv[])
              {
         MyLogger::info("Received login request");
 
-        try {
+        try
+        {
             auto body = json::parse(req.body);
-            if (!body.contains("userID") || !body.contains("password")) {
-                res.status = 400;
+            if (!body.contains("userID") || !body.contains("password"))
+            {
+                MyLogger::warning("Missing userID or password in request");
+                res.status = 400; // Bad Request for missing fields
                 res.set_content(R"({"status": "error", "message": "Invalid JSON format"})", "application/json");
                 return;
             }
@@ -159,18 +162,42 @@ int main(int argc, char *argv[])
             std::string password = body["password"];
             json response = authenticateUser(userID, password);
 
+            // Set appropriate HTTP response codes based on the result
+            if (response["status"] == "error")
+            {
+                std::string message = response["message"];
+                if (message == "Invalid credentials")
+                {
+                    res.status = 401; // Unauthorized
+                }
+                else if (message == "Redis not initialized")
+                {
+                    res.status = 503; // Service Unavailable
+                }
+                else if (message == "Redis command error")
+                {
+                    res.status = 500; // Internal Server Error
+                }
+                else
+                {
+                    res.status = 400; // Bad Request for other errors
+                }
+            }
+            else
+            {
+                res.status = 200; // OK for successful authentication
+            }
             MyLogger::info("Authentication response: " + response.dump());
             res.set_content(response.dump(), "application/json");
-
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception &e)
+        {
             MyLogger::error("Request error: " + std::string(e.what()));
-            res.status = 500;
+            res.status = 500; // Internal Server Error
             res.set_content(R"({"status": "error", "message": "Server error"})", "application/json");
         } });
 
     MyLogger::info("Authentication Server running on " + server_ip + ":" + std::to_string(server_port) + "...");
-
-    // Check if listen was successful
     if (!svr.listen(server_ip, server_port))
     {
         MyLogger::error("Failed to start server on " + server_ip + ":" + std::to_string(server_port));

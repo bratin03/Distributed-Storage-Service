@@ -15,8 +15,8 @@ CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS))
 # Linker flags: look for libraries built in the subdirectories.
 LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))
 # Libraries produced in subdirectories plus extra libraries.
-LIBS     = -lfsUtils -lload_config -llogin -lmerge -lmetadata -lserverUtils -lcache -lrocksdb -lkv \
-		   -lcrypto -lz -lpthread -lnotification -lwatcher -lcurl
+LIBS     = -lfsUtils -lload_config -llogin -lmetadata -lserverUtils -lcache -lrocksdb -lkv \
+		   -lcrypto -lz -lpthread -lnotification -lwatcher -lcurl -lmerge -lgit2
 
 # Default target.
 all: client.out

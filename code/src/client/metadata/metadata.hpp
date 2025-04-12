@@ -74,6 +74,13 @@ namespace metadata
   bool removeFileFromDatabase(const std::string &key);
   bool removeDirectoryFromDatabase(const std::string &key);
 
+  // Add/Remove file/directory from parent directory
+  bool addFileToDirectory(const std::string &key);
+  bool removeFileFromDirectory(const std::string &key);
+
+  bool addDirectoryToDirectory(const std::string &key);
+  bool removeDirectoryFromDirectory(const std::string &key);
+
 } // namespace metadata
 
 #endif // METADATA_HPP

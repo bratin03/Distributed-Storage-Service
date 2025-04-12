@@ -1,4 +1,5 @@
 {
   "monitoring_path": "/home/bratin/Shared/",
-  "metadata_path": "/var/lib/DSS/metadata/"
+  "metadata_path": "/var/lib/DSS/metadata/",
+  "device_id": "BM-1"
 }

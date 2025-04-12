@@ -213,4 +213,142 @@ namespace metadata
     rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), key);
     return status.ok();
   }
+
+  // -----------------------------
+  // File/Directory Removal Implementation
+  // -----------------------------
+
+  bool addFileToDirectory(const std::string &key)
+  {
+    // Parse the key to get the directory name
+    size_t lastSlash = key.find_last_of('/');
+    if (lastSlash == std::string::npos)
+    {
+      MyLogger::error("Invalid file key: " + key);
+      return false;
+    }
+    std::string dir_key = key.substr(0, lastSlash);
+    Directory_Metadata dir_metadata(dir_key);
+    if (!dir_metadata.loadFromDatabase())
+    {
+      MyLogger::error("Failed to load directory metadata from database for: " + dir_key);
+      return false;
+    }
+    // Add the file to the directory's list of files if it doesn't already exist
+    if (std::find(dir_metadata.files.begin(), dir_metadata.files.end(), key) == dir_metadata.files.end())
+    {
+      dir_metadata.files.push_back(key);
+      if (!dir_metadata.storeToDatabase())
+      {
+        MyLogger::error("Failed to update directory metadata in database for: " + dir_key);
+        return false;
+      }
+    }
+    else
+    {
+      MyLogger::info("File already exists in directory: " + key);
+    }
+    return true;
+  }
+
+  bool removeFileFromDirectory(const std::string &key)
+  {
+    // Parse the key to get the directory name
+    size_t lastSlash = key.find_last_of('/');
+    if (lastSlash == std::string::npos)
+    {
+      MyLogger::error("Invalid file key: " + key);
+      return false;
+    }
+    std::string dir_key = key.substr(0, lastSlash);
+    Directory_Metadata dir_metadata(dir_key);
+    if (!dir_metadata.loadFromDatabase())
+    {
+      MyLogger::error("Failed to load directory metadata from database for: " + dir_key);
+      return false;
+    }
+    // Remove the file from the directory's list of files
+    auto it = std::remove(dir_metadata.files.begin(), dir_metadata.files.end(), key);
+    if (it != dir_metadata.files.end())
+    {
+      dir_metadata.files.erase(it, dir_metadata.files.end());
+      if (!dir_metadata.storeToDatabase())
+      {
+        MyLogger::error("Failed to update directory metadata in database for: " + dir_key);
+        return false;
+      }
+    }
+    else
+    {
+      MyLogger::info("File not found in directory: " + key);
+    }
+    return true;
+  }
+
+  bool addDirectoryToDirectory(const std::string &key)
+  {
+    // Parse the key to get the parent directory name
+    size_t lastSlash = key.find_last_of('/');
+    if (lastSlash == std::string::npos)
+    {
+      MyLogger::error("Invalid directory key: " + key);
+      return false;
+    }
+    std::string parent_dir_key = key.substr(0, lastSlash);
+    Directory_Metadata dir_metadata(parent_dir_key);
+    if (!dir_metadata.loadFromDatabase())
+    {
+      MyLogger::error("Failed to load directory metadata from database for: " + parent_dir_key);
+      return false;
+    }
+    // Add the directory to the parent's list of directories if it doesn't already exist
+    if (std::find(dir_metadata.directories.begin(), dir_metadata.directories.end(), key) == dir_metadata.directories.end())
+    {
+      dir_metadata.directories.push_back(key);
+      if (!dir_metadata.storeToDatabase())
+      {
+        MyLogger::error("Failed to update directory metadata in database for: " + parent_dir_key);
+        return false;
+      }
+    }
+    else
+    {
+      MyLogger::info("Directory already exists in parent directory: " + key);
+    }
+    return true;
+  }
+
+  bool removeDirectoryFromDirectory(const std::string &key)
+  {
+    // Parse the key to get the parent directory name
+    size_t lastSlash = key.find_last_of('/');
+    if (lastSlash == std::string::npos)
+    {
+      MyLogger::error("Invalid directory key: " + key);
+      return false;
+    }
+    std::string parent_dir_key = key.substr(0, lastSlash);
+    Directory_Metadata dir_metadata(parent_dir_key);
+    if (!dir_metadata.loadFromDatabase())
+    {
+      MyLogger::error("Failed to load directory metadata from database for: " + parent_dir_key);
+      return false;
+    }
+    // Remove the directory from the parent's list of directories
+    auto it = std::remove(dir_metadata.directories.begin(), dir_metadata.directories.end(), key);
+    if (it != dir_metadata.directories.end())
+    {
+      dir_metadata.directories.erase(it, dir_metadata.directories.end());
+      if (!dir_metadata.storeToDatabase())
+      {
+        MyLogger::error("Failed to update directory metadata in database for: " + parent_dir_key);
+        return false;
+      }
+    }
+    else
+    {
+      MyLogger::info("Directory not found in parent directory: " + key);
+    }
+    return true;
+  }
 } // namespace metadata
