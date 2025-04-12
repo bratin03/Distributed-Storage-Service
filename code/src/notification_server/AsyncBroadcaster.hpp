@@ -34,152 +34,80 @@ namespace async_broadcast
         {
         }
 
-        /// Broadcast the given JSON message to all servers in the list.
-        /// This function will block until all asynchronous operations are completed.
-        void broadcast(const nlohmann::json &message)
+        // Function that performs the HTTP POST request to /broadcast for a given server.
+        void sendBroadcastRequest(const Server &server, const nlohmann::json &message)
         {
-            // Create an io_context to run asynchronous operations.
-            boost::asio::io_context ioc;
+            // Construct the URL as http://<ip>:<port>/broadcast
+            std::ostringstream urlStream;
+            urlStream << "http://" << server.ip << ":" << server.port << "/broadcast";
+            std::string url = urlStream.str();
 
-            // Create a session for each server.
+            // Initialize libcurl
+            CURL *curl = curl_easy_init();
+            if (curl)
+            {
+                // Set the URL for the HTTP request.
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+                // Specify that this is a POST request.
+                curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+                // Convert the JSON message to a string.
+                std::string payload = message.dump();
+                curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+
+                // Set the HTTP header for JSON content.
+                struct curl_slist *headers = nullptr;
+                headers = curl_slist_append(headers, "Content-Type: application/json");
+                curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+                // Perform the request.
+                CURLcode res = curl_easy_perform(curl);
+                if (res != CURLE_OK)
+                {
+                    std::cerr << "Broadcast request to " << url << " failed: "
+                              << curl_easy_strerror(res) << std::endl;
+                }
+                else
+                {
+                    std::cout << "Broadcast request to " << url << " completed successfully." << std::endl;
+                }
+
+                // Cleanup.
+                curl_slist_free_all(headers);
+                curl_easy_cleanup(curl);
+            }
+            else
+            {
+                std::cerr << "Failed to initialize CURL for server " << server.ip << std::endl;
+            }
+        }
+
+        // The broadcast function accepts a list of servers and a JSON message.
+        // It spawns a separate thread per server so that all requests are sent concurrently.
+        void broadcast( const nlohmann::json &message)
+        {
+            std::vector<std::thread> threads;
+            // Reserve space to avoid unnecessary reallocations
+            threads.reserve(servers_.size());
+
+            // Launch one thread per server.
             for (const auto &server : servers_)
             {
-                std::make_shared<Session>(ioc, server, message)->run();
+                threads.emplace_back(sendBroadcastRequest, server, message);
             }
 
-            // Run all asynchronous operations.
-            ioc.run();
+            // Join all threads so that broadcast returns only after all requests finish.
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
         }
 
     private:
         std::vector<Server> servers_;
-
-        // Internal class representing the asynchronous session for each server.
-        class Session : public std::enable_shared_from_this<Session>
-        {
-        public:
-            Session(boost::asio::io_context &ioc,
-                    const Server &server,
-                    const nlohmann::json &message)
-                : resolver_(ioc),
-                  stream_(ioc),
-                  server_(server),
-                  message_(message)
-            {
-            }
-
-            // Start the asynchronous session.
-            void run()
-            {
-                MyLogger::info("Starting session for server " + server_.ip + ":" + std::to_string(server_.port));
-                resolver_.async_resolve(
-                    server_.ip,
-                    std::to_string(server_.port),
-                    std::bind(&Session::on_resolve,
-                              shared_from_this(),
-                              std::placeholders::_1,
-                              std::placeholders::_2));
-            }
-
-        private:
-            using tcp = boost::asio::ip::tcp;
-            tcp::resolver resolver_;
-            boost::beast::tcp_stream stream_;
-            Server server_;
-            nlohmann::json message_;
-            boost::beast::flat_buffer buffer_;
-            boost::beast::http::request<boost::beast::http::string_body> req_;
-            boost::beast::http::response<boost::beast::http::dynamic_body> res_;
-
-            // Callback for DNS resolution.
-            void on_resolve(boost::system::error_code ec, tcp::resolver::results_type results)
-            {
-                if (ec)
-                {
-                    MyLogger::error("Resolve error for " + server_.ip + ": " + ec.message());
-                    return;
-                }
-                stream_.async_connect(
-                    results,
-                    std::bind(&Session::on_connect,
-                              shared_from_this(),
-                              std::placeholders::_1));
-            }
-
-            // Callback once connected.
-            void on_connect(boost::system::error_code ec)
-            {
-                if (ec)
-                {
-                    MyLogger::error("Connect error for " + server_.ip + ": " + ec.message());
-                    return;
-                }
-                MyLogger::info("Connected to " + server_.ip + ":" + std::to_string(server_.port));
-
-                // Prepare the HTTP POST request.
-                req_.version(11);
-                req_.method(boost::beast::http::verb::post);
-                req_.target("/broadcast");
-                req_.set(boost::beast::http::field::host, server_.ip);
-                req_.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-                req_.set(boost::beast::http::field::content_type, "application/json");
-                req_.body() = message_.dump();
-                req_.prepare_payload();
-
-                boost::beast::http::async_write(
-                    stream_,
-                    req_,
-                    std::bind(&Session::on_write,
-                              shared_from_this(),
-                              std::placeholders::_1,
-                              std::placeholders::_2));
-            }
-
-            // Callback after sending the request.
-            void on_write(boost::system::error_code ec, std::size_t bytes_transferred)
-            {
-                boost::ignore_unused(bytes_transferred);
-                if (ec)
-                {
-                    MyLogger::error("Write error for " + server_.ip + ": " + ec.message());
-                    return;
-                }
-                MyLogger::info("HTTP POST request sent to " + server_.ip);
-
-                boost::beast::http::async_read(
-                    stream_,
-                    buffer_,
-                    res_,
-                    std::bind(&Session::on_read,
-                              shared_from_this(),
-                              std::placeholders::_1,
-                              std::placeholders::_2));
-            }
-
-            // Callback after reading the response.
-            void on_read(boost::system::error_code ec, std::size_t bytes_transferred)
-            {
-                boost::ignore_unused(bytes_transferred);
-                if (ec)
-                {
-                    MyLogger::error("Read error for " + server_.ip + ": " + ec.message());
-                    return;
-                }
-
-                auto bodyStr = boost::beast::buffers_to_string(res_.body().data());
-                MyLogger::info("Received response from " + server_.ip + ": " + bodyStr);
-
-                // Gracefully close the connection.
-                boost::system::error_code shutdown_ec;
-                stream_.socket().shutdown(tcp::socket::shutdown_both, shutdown_ec);
-                if (shutdown_ec && shutdown_ec != boost::beast::errc::not_connected)
-                {
-                    MyLogger::error("Shutdown error for " + server_.ip + ": " + shutdown_ec.message());
-                    return;
-                }
-                MyLogger::info("Connection closed gracefully for " + server_.ip);
-            }
-        }; // End class Session
 
     }; // End class AsyncBroadcaster
 
