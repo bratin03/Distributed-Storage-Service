@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <curl/curl.h>
 #include "nlohmann/json.hpp"
+#include "../logger/Mylogger.hpp"
 
 // Special value used for deletion since the server only supports get and put.
 #define DELETE_VALUE "__DELETE__"

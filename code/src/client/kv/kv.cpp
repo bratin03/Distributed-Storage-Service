@@ -1,5 +1,5 @@
 #include "kv.hpp"
-#include <cstdio> // for printf
+#include <cstdio>
 
 namespace distributed_KV
 {
@@ -137,20 +137,31 @@ namespace distributed_KV
             try
             {
                 auto jsonResponse = nlohmann::json::parse(res.value);
+                MyLogger::debug("Response from server: " + jsonResponse.dump(4));
                 // Check if the server indicates a failure (e.g., key never set)
                 if (jsonResponse.contains("code") && jsonResponse["code"] == "fail")
                 {
                     return {"", "Error: Key does not exist", false};
                 }
                 // Check if payload contains a value
-                if (jsonResponse.contains("payload") && jsonResponse["payload"].contains("value"))
+                if (jsonResponse.contains("payload"))
                 {
-                    std::string value = jsonResponse["payload"]["value"];
-                    if (value == DELETE_VALUE)
+                    auto payload = jsonResponse["payload"];
+                    // If payload is a string, serialize it.
+                    if (payload.is_string())
                     {
-                        return {"", "Error: Key does not exist", false};
+                        payload = nlohmann::json::parse(payload.get<std::string>());
                     }
-                    res.value = value;
+                    if (payload.contains("data"))
+                    {
+                        // Check if it is deleted
+                        if (payload["data"] == DELETE_VALUE)
+                        {
+                            return {"", "Error: Key does not exist", false};
+                        }
+                        MyLogger::debug("Value from server: " + payload.dump(4));
+                        return {payload.dump(), "Success", true};
+                    }
                 }
                 else
                 {
@@ -224,7 +235,7 @@ namespace distributed_KV
                 auto j = nlohmann::json::parse(getResp.value);
                 // For now, return the pretty-printed JSON.
                 response.success = true;
-                response.value = j.dump(4);
+                response.value = j.dump();
             }
             catch (const std::exception &e)
             {

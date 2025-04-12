@@ -104,6 +104,7 @@ namespace boot
             dir_key.pop_back();
         localToRemoteDirCheck(dir_key);
     }
+
     void localToRemoteDirCheck(const std::string &dir_key)
     {
         MyLogger::info("Checking remote directory: " + dir_key);
@@ -113,7 +114,9 @@ namespace boot
             MyLogger::error("Failed to get response from server for list-directory");
             return;
         }
-        MyLogger::info("Response from server: " + resp.dump());
+
+        MyLogger::debug("Response from server: " + resp.dump(4));
+
         // in subdirectories field we have the subdirectories, extract the subdirectories
         std::set<std::string> subdirectories;
         if (resp.contains("subdirectories"))
@@ -124,6 +127,10 @@ namespace boot
                 MyLogger::info("Found subdirectory in remote: " + subdir.get<std::string>());
             }
         }
+        else
+        {
+            MyLogger::warning("Field 'subdirectories' not found in response for: " + dir_key);
+        }
         std::set<std::string> files;
         if (resp.contains("files"))
         {
@@ -132,6 +139,10 @@ namespace boot
                 files.insert(file);
                 MyLogger::info("Found file in remote: " + file.get<std::string>());
             }
+        }
+        else
+        {
+            MyLogger::warning("Field 'files' not found in response for: " + dir_key);
         }
         metadata::Directory_Metadata dir_metadata(dir_key);
         if (dir_metadata.loadFromDatabase())
@@ -167,6 +178,7 @@ namespace boot
             }
         }
     }
+
     void sendDirRecursively(const std::string &dir_key)
     {
         MyLogger::info("Sending directory recursively: " + dir_key);
@@ -193,4 +205,145 @@ namespace boot
             sendDirRecursively(subdir_key);
         }
     }
+
+    void RemoteToLocal()
+    {
+        MyLogger::info("Starting remote to local synchronization...");
+        auto dir_key = fsUtils::buildKeyfromFullPath(fsUtils::g_basePath);
+        if (dir_key.back() == '/')
+            dir_key.pop_back();
+        RemoteToLocalDirCheck(dir_key);
+    }
+
+    void RemoteToLocalDirCheck(const std::string &dir_key)
+    {
+        MyLogger::info("Checking remote directory: " + dir_key);
+        // Load the directory metadata from the database
+        metadata::Directory_Metadata dir_metadata(dir_key);
+        if (!dir_metadata.loadFromDatabase())
+        {
+            MyLogger::warning("Directory metadata not found in database for: " + dir_key);
+            return;
+        }
+        std::set<std::string> file_keys_local;
+        std::set<std::string> dir_keys_local;
+        // Iterate through the metadata and get the local file keys
+        for (const auto &file_key : dir_metadata.files)
+        {
+            file_keys_local.insert(file_key);
+        }
+        for (const auto &dir_key : dir_metadata.directories)
+        {
+            dir_keys_local.insert(dir_key);
+        }
+
+        // Now make a request to the server to get the remote file keys
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
+
+        if (resp == nullptr)
+        {
+            MyLogger::error("Failed to get response from server for list-directory");
+            return;
+        }
+
+        MyLogger::debug("Response from server: " + resp.dump(4));
+
+        if (resp.contains("files"))
+        {
+            for (const auto &file : resp["files"])
+            {
+                auto key = file.get<std::string>();
+                if (file_keys_local.find(key) == file_keys_local.end())
+                {
+                    MyLogger::info("File not found locally, fetching: " + key);
+                    serverUtils::fetchNewFile(key);
+                }
+                else
+                {
+                    MyLogger::info("File found locally, no need to fetch: " + key);
+                }
+            }
+        }
+        else
+        {
+            MyLogger::warning("Field 'files' not found in response for: " + dir_key);
+        }
+        if (resp.contains("subdirectories"))
+        {
+            for (const auto &subdir : resp["subdirectories"])
+            {
+                auto key = subdir.get<std::string>();
+                if (dir_keys_local.find(key) == dir_keys_local.end())
+                {
+                    MyLogger::info("Subdirectory not found locally, fetching: " + key);
+                    fetchDirRecursively(key);
+                }
+                else
+                {
+                    MyLogger::info("Subdirectory found locally, recursing into: " + key);
+                    RemoteToLocalDirCheck(key);
+                }
+            }
+        }
+        else
+        {
+            MyLogger::warning("Field 'subdirectories' not found in response for: " + dir_key);
+        }
+    }
+
+    void fetchDirRecursively(const std::string &dir_key)
+    {
+        MyLogger::info("Fetching directory recursively: " + dir_key);
+        // Load the directory metadata from the database or create it if it doesn't exist
+        metadata::Directory_Metadata dir_metadata(dir_key);
+        if (!dir_metadata.loadFromDatabase())
+        {
+            MyLogger::warning("Directory metadata not found in database for: " + dir_key);
+        }
+        // Make a request to the server to get the files in the directory
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
+        if (resp == nullptr)
+        {
+            MyLogger::error("Failed to get response from server for list-directory");
+            return;
+        }
+        MyLogger::debug("Response from server: " + resp.dump());
+        fsUtils::ensureDirectoryExists(dir_key);
+        if (resp.contains("files"))
+        {
+            for (const auto &file : resp["files"])
+            {
+                auto key = file.get<std::string>();
+                dir_metadata.files.push_back(key);
+                MyLogger::info("Fetching file: " + key);
+            }
+        }
+        else
+        {
+            MyLogger::warning("Field 'files' not found in response for: " + dir_key);
+        }
+        if (resp.contains("subdirectories"))
+        {
+            for (const auto &subdir : resp["subdirectories"])
+            {
+                auto key = subdir.get<std::string>();
+                dir_metadata.directories.push_back(key);
+                MyLogger::info("Fetching subdirectory: " + key);
+                fetchDirRecursively(key);
+            }
+        }
+        else
+        {
+            MyLogger::warning("Field 'subdirectories' not found in response for: " + dir_key);
+        }
+        if (dir_metadata.storeToDatabase())
+        {
+            MyLogger::info("Directory metadata stored to database for: " + dir_key);
+        }
+        else
+        {
+            MyLogger::error("Failed to store directory metadata to database for: " + dir_key);
+        }
+    }
+
 }

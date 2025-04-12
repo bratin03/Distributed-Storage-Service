@@ -26,6 +26,7 @@ def value_get():
         filePath = payload["key"]
 
         userID = verify_jwt(token)
+        logging.debug(f"User ID: {userID}")
         if userID is None:
             reply = {"code": "fail", "message": "Invalid token"}
             return jsonify(reply)

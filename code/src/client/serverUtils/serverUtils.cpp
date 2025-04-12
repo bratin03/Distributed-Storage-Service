@@ -67,9 +67,21 @@ namespace serverUtils
             }
         }
         auto response = distributed_KV::setFile(endpoints, file_key, content, version, login::token);
-        if(response.success)
+        if (response.success)
         {
             MyLogger::info("File uploaded successfully to: " + file_key);
+            // Update the metadata in the database
+            fileMetadata.file_content = content;
+            // Version is incremented by 1 (it is string)
+            fileMetadata.version = std::to_string(std::stoi(fileMetadata.version) + 1);
+            fileMetadata.content_hash = fsUtils::computeSHA256Hash(content);
+            fileMetadata.fileSize = content.size();
+            if (!fileMetadata.storeToDatabase())
+            {
+                MyLogger::error("Failed to save file metadata to database for: " + file_key);
+                return false;
+            }
+            MyLogger::info("File metadata updated in database for: " + file_key);
             return true;
         }
         else
@@ -121,6 +133,38 @@ namespace serverUtils
         cache_instance->set(file_key, endpoints);
 
         return endpoints;
+    }
+
+    bool fetchNewFile(const std::string &file_key)
+    {
+        MyLogger::info("Fetching new file: " + file_key);
+        auto endpoints = getFileEndpoints(file_key);
+        if (endpoints.empty())
+        {
+            MyLogger::error("No endpoints available for file: " + file_key);
+            return false;
+        }
+        if(login::token.empty())
+        {
+            login::login();
+            if (login::token.empty())
+            {
+                MyLogger::error("Failed to obtain login token.");
+                return false;
+            }
+        }
+        auto response = distributed_KV::getFile(endpoints, file_key, login::token);
+        if (response.success)
+        {
+            json response_json = json::parse(response.value);
+            MyLogger::debug("Response from fetch file: " + response_json.dump(4));
+        }
+        else
+        {
+            MyLogger::error("Failed to fetch file: " + response.err);
+            return false;
+        }
+        return false;
     }
 
 } // namespace serverUtils

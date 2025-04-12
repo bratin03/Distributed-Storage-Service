@@ -57,6 +57,8 @@ int main(int argc, char *argv[])
 
     boot::localSync();
 
+    boot::RemoteToLocal();
+
     boot::localToRemote();
 
     std::queue<json> notification_queue;

@@ -11,5 +11,7 @@ namespace boot
     void localToRemote();
     void localToRemoteDirCheck(const std::string &dir_key);
     void sendDirRecursively(const std::string &dir_key);
-
+    void RemoteToLocal();
+    void RemoteToLocalDirCheck(const std::string &dir_key);
+    void fetchDirRecursively(const std::string &dir_key);
 }

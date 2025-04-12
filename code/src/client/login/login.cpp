@@ -169,14 +169,20 @@ namespace login
             httplib::Headers headers = {
                 {"Authorization", "Bearer " + token},
                 {"Content-Type", "application/json"}};
-            MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path + "Payload: " + payload.dump());
+            MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path + " Payload: " + payload.dump());
             auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
             if (res)
             {
                 if (res->status == 200)
                 {
                     MyLogger::info("Request successful: " + res->body);
-                    return json::parse(res->body); // Parse response body to JSON and return it
+                    auto resp_json = json::parse(res->body);
+                    // Parse again if it is a string
+                    if (resp_json.is_string())
+                    {
+                        resp_json = json::parse(resp_json.get<std::string>());
+                    }
+                    return resp_json; // Parse response body to JSON and return it
                 }
                 else
                 {
@@ -198,14 +204,20 @@ namespace login
         httplib::Headers headers = {
             {"Authorization", "Bearer " + token},
             {"Content-Type", "application/json"}};
-        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path + "Payload: " + payload.dump());
+        MyLogger::info("Sending request to " + ip + ":" + std::to_string(port) + path + " Payload: " + payload.dump());
         auto res = cli.Post(path.c_str(), headers, payload.dump(), "application/json");
         if (res)
         {
             if (res->status == 200)
             {
                 MyLogger::info("Request successful: " + res->body);
-                return json::parse(res->body); // Parse response body to JSON and return it
+                auto resp_json = json::parse(res->body);
+                // Parse again if it is a string
+                if (resp_json.is_string())
+                {
+                    resp_json = json::parse(resp_json.get<std::string>());
+                }
+                return resp_json; // Parse response body to JSON and return it
             }
             else if (res->status == 403)
             {
