@@ -25,7 +25,7 @@ namespace distributed_KV
     };
 
     // Helper: CURL write callback to accumulate response data.
-    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
+    inline static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
     {
         std::string *s = static_cast<std::string *>(userp);
         size_t totalSize = size * nmemb;
@@ -34,7 +34,7 @@ namespace distributed_KV
     }
 
     // Helper: Send an HTTP request (GET or PUT) with a JSON payload.
-    Response sendRequest(const std::string &url, const std::string &reqType, const nlohmann::json &message)
+    inline Response sendRequest(const std::string &url, const std::string &reqType, const nlohmann::json &message)
     {
         Response res{"", "", false};
         CURL *curl = curl_easy_init();
@@ -98,7 +98,7 @@ namespace distributed_KV
     // Implements the redirection logic: if the server responds with a valid JSON payload
     // that includes a "message" field (interpreted as a new leader address),
     // it will update the URL and repeat the request.
-    Response redirectToLeader(const std::string &initialUrl, const std::string &reqType, const nlohmann::json &message)
+    inline Response redirectToLeader(const std::string &initialUrl, const std::string &reqType, const nlohmann::json &message)
     {
         std::string currentUrl = initialUrl;
         Response res;
@@ -131,7 +131,7 @@ namespace distributed_KV
     }
 
     // Utility: Given a vector of server IP addresses, shuffle the vector and try each one until one returns a valid response.
-    Response tryServers(const std::vector<std::string> &servers, const std::string &reqType, const nlohmann::json &message)
+    inline Response tryServers(const std::vector<std::string> &servers, const std::string &reqType, const nlohmann::json &message)
     {
         std::vector<std::string> shuffledServers = servers;
         std::random_device rd;
@@ -166,7 +166,7 @@ namespace distributed_KV
      *         - value: the retrieved value if successful.
      *         - err: an error message if the key does not exist or an error occurred.
      */
-    Response get(const std::vector<std::string> &servers, const std::string &key)
+    inline Response get(const std::vector<std::string> &servers, const std::string &key)
     {
         printf("Getting key: %s\n", key.c_str());
         nlohmann::json payload = {{"key", key}};
@@ -219,7 +219,7 @@ namespace distributed_KV
      *         - value: the response from the server if applicable.
      *         - err: an error message if the operation failed.
      */
-    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &value)
+    inline Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &value)
     {
         printf("Setting key: %s with value: %s\n", key.c_str(), value.c_str());
         nlohmann::json payload = {{"key", key}, {"value", value}};
@@ -240,7 +240,7 @@ namespace distributed_KV
      *         - value: the response from the server if applicable.
      *         - err: an error message if the operation failed.
      */
-    Response del(const std::vector<std::string> &servers, const std::string &key)
+    inline Response del(const std::vector<std::string> &servers, const std::string &key)
     {
         return set(servers, key, DELETE_VALUE);
     }
