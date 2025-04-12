@@ -3,6 +3,8 @@
 namespace serverUtils
 {
     std::shared_ptr<cache::Cache> cache_instance = nullptr;
+    std::string notificationLoadBalancerip;
+    unsigned short notificationLoadBalancerPort;
 
     void initializeCache(std::chrono::milliseconds defaultTTL, std::size_t maxSize)
     {

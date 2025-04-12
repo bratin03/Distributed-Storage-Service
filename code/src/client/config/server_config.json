@@ -4,5 +4,7 @@
   "login_ip": "127.0.0.1",
   "login_port": 30000,
   "metaserver_ip": "127.0.0.3",
-  "metaserver_port": 40000
+  "metaserver_port": 40000,
+  "notification_ip": "127.0.0.2",
+  "notification_port": 10000
 }

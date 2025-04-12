@@ -8,7 +8,9 @@
 #include <rocksdb/options.h>
 #include "logger/Mylogger.hpp"
 #include "boot/boot.hpp"
+#include <queue>
 #include "serverUtils/serverUtils.hpp"
+#include "notification/notification.hpp"
 
 using json = nlohmann::json;
 
@@ -53,6 +55,21 @@ int main(int argc, char *argv[])
     serverUtils::initializeCache();
 
     boot::localSync();
+
+    std::queue<json> notification_queue;
+    std::mutex queue_mutex;
+
+    notification::NotificationClient notification_client(
+        serverUtils::notificationLoadBalancerip,
+        serverUtils::notificationLoadBalancerPort,
+        login::username,
+        notification_queue,
+        queue_mutex);
+
+    notification_client.start();
+
+    // sleep for 2 seconds to allow notification client to start
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     boot::localToRemote();
 

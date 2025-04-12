@@ -24,6 +24,8 @@ namespace login
         loginLoadBalancerPort = ConfigReader::get_config_short("login_port", server_info);
         metaLoadBalancerip = ConfigReader::get_config_string("metaserver_ip", server_info);
         metaLoadBalancerPort = ConfigReader::get_config_short("metaserver_port", server_info);
+        serverUtils::notificationLoadBalancerip = ConfigReader::get_config_string("notification_ip", server_info);
+        serverUtils::notificationLoadBalancerPort = ConfigReader::get_config_short("notification_port", server_info);
 
         MyLogger::info("SignUp LoadBalancer IP: " + signUpLoadBalancerip);
         MyLogger::info("SignUp LoadBalancer Port: " + std::to_string(signUpLoadBalancerPort));

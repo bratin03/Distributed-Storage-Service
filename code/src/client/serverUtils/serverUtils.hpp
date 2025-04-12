@@ -15,4 +15,6 @@ namespace serverUtils
     void initializeCache(std::chrono::milliseconds defaultTTL = std::chrono::minutes(15), std::size_t maxSize = 4096);
     json createFile(const std::string &file_key);
     json createDir(const std::string &dir_key);
+    extern std::string notificationLoadBalancerip;
+    extern unsigned short notificationLoadBalancerPort;
 } // namespace serverUtils
