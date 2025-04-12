@@ -70,6 +70,19 @@ def value_put():
     if n.status == LEADER:
         payload["value"] = json.loads(payload["value"])
 
+        # deletion of file
+        if payload["value"] == "__DELETE__":
+            
+            new_payload = {"key": payload["key"], "value": "__DELETE__"}
+            result =  n.handle_put(new_payload)
+            if result:
+                reply = {"code": "success", "payload": new_payload}
+            else:
+                reply = {"code": "fail", "message": "Deletion failed"}
+
+            return jsonify(reply)
+        
+
         token = payload["token"]
         filePath = payload["key"]
 
@@ -83,17 +96,8 @@ def value_put():
         key = userID + ":" + filePath
         existing_payload = n.handle_get(key)
 
-        # deletion of file
-        if payload["value"] == "__DELETE__":
-            new_payload = {"key": key, "value": "__DELETE__"}
-            result =  n.handle_put(new_payload)
-            if result:
-                reply = {"code": "success", "payload": new_payload}
-            else:
-                reply = {"code": "fail", "message": "Deletion failed"}
-
         # creation of file
-        elif existing_payload is None or existing_payload == "__DELETE__":
+        if existing_payload is None or existing_payload == "__DELETE__":
             if new_version != "0":
                 reply = {"code": "fail", "message": "Version mismatch"}
             else : 
