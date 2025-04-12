@@ -13,6 +13,9 @@
 #include <memory>
 #include <iostream>
 #include <functional>
+#include <sstream>
+#include <thread>
+#include <curl/curl.h>
 
 namespace async_broadcast
 {
@@ -82,35 +85,22 @@ namespace async_broadcast
             }
         }
 
-        // The broadcast function accepts a list of servers and a JSON message.
-        // It spawns a separate thread per server so that all requests are sent concurrently.
-        void broadcast( const nlohmann::json &message)
+        // The broadcast function accepts a JSON message. It spawns a detached thread per server
+        // so that the requests are sent concurrently and do not block each other.
+        void broadcast(const nlohmann::json &message)
         {
-            std::vector<std::thread> threads;
-            // Reserve space to avoid unnecessary reallocations
-            threads.reserve(servers_.size());
-
-            // Launch one thread per server.
             for (const auto &server : servers_)
             {
-                threads.emplace_back(sendBroadcastRequest, server, message);
-            }
-
-            // Detach all threads to allow them to run independently.
-            for (auto &t : threads)
-            {
-                if (t.joinable())
-                {
-                    t.detach();
-                }
+                // Launch a new detached thread calling the member function sendBroadcastRequest.
+                std::thread(&AsyncBroadcaster::sendBroadcastRequest, this, server, message).detach();
             }
         }
 
     private:
         std::vector<Server> servers_;
-
-    }; // End class AsyncBroadcaster
+    };
 
 } // End namespace async_broadcast
 
 #endif // ASYNC_BROADCASTER_HPP
+
