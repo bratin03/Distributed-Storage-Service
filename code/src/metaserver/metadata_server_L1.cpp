@@ -679,7 +679,7 @@ void block_server_confirmation(const httplib::Request &req, httplib::Response &r
 std::atomic<bool> server_running(true);
 httplib::Server *global_server = nullptr;
 
-void shutdown_server()
+void shutdown_server(int)
 {
     if (server_running && global_server)
     {
@@ -693,10 +693,8 @@ void shutdown_server()
 
 int main()
 {
-    signal(SIGINT, [](int signum)
-           { shutdown_server(); });
-    signal(SIGTERM, [](int signum)
-           { shutdown_server(); });
+    signal(SIGINT, shutdown_server);
+    signal(SIGTERM, shutdown_server);
 
     httplib::Server svr;
     global_server = &svr;

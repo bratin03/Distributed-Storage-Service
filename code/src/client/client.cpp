@@ -11,6 +11,7 @@
 #include <queue>
 #include "serverUtils/serverUtils.hpp"
 #include "notification/notification.hpp"
+#include "watcher/watcher.hpp"
 
 using json = nlohmann::json;
 
@@ -56,6 +57,8 @@ int main(int argc, char *argv[])
 
     boot::localSync();
 
+    boot::localToRemote();
+
     std::queue<json> notification_queue;
     std::mutex queue_mutex;
 
@@ -68,10 +71,16 @@ int main(int argc, char *argv[])
 
     notification_client.start();
 
-    // sleep for 2 seconds to allow notification client to start
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::queue<watcher::FileEvent> eventQueue;
+    std::set<watcher::FileEvent> eventMap;
+    std::mutex mtx;
+    std::condition_variable cv;
 
-    boot::localToRemote();
+    // Create watcher thread
+    std::thread watcher_thread([&]()
+                               { watcher::watch_directory(monitoring_path, eventQueue, eventMap, mtx, cv); });
+
+    watcher_thread.join();
 
     return 0;
 }

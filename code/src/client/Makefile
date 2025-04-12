@@ -1,38 +1,52 @@
-# Root-level Makefile
-# ===================
+# Improved Root-level Makefile
+# ============================
 
-# Define subdirectories that contain their own make targets.
-# These directories are expected to compile into static libraries.
-SUBDIRS = cache fsUtils load_config login merge metadata boot serverUtils notification
+# Directories producing static libraries.
+LIB_SUBDIRS = cache fsUtils load_config login merge metadata serverUtils notification watcher
+# Boot is special since boot/boot.cpp is compiled in the client build.
+BOOT_DIR = boot
 
-# Compiler and linker flags
+# Compiler and linker configuration.
 CXX      = g++
-CXXFLAGS = -Wall -O2 -g -pg\
-           -I. -Iboot -Icache -IfsUtils -Iload_config -Ilogin -Imerge -Imetadata -IserverUtils -Inotification
-# Linker flags to look for libraries built in subdirectories.
-LDFLAGS = -Lcache -LfsUtils -Lload_config -Llogin -Lmerge -Lmetadata -LserverUtils -Lnotification
-# List of static libraries produced in the subdirectories.
-LIBS    = -lfsUtils -lload_config -llogin -lmerge -lmetadata -lserverUtils -lcache -lrocksdb -lcrypto -lz -lpthread -lnotification
+# Automatically construct include flags from directories. The dot (".") and boot directory
+# are explicitly added because boot does not have its own Makefile.
+INC_DIRS = . $(BOOT_DIR) $(LIB_SUBDIRS)
+CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS))
+# Linker flags: look for libraries built in the subdirectories.
+LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))
+# Libraries produced in subdirectories plus extra libraries.
+LIBS     = -lfsUtils -lload_config -llogin -lmerge -lmetadata -lserverUtils -lcache -lrocksdb \
+           -lcrypto -lz -lpthread -lnotification -lwatcher
 
-# Default target; build subdirectories and then build the client executable.
+# Default target.
 all: client.out
 
 # Build the client executable.
-# Note: client.cpp (top-level source) and boot/boot.cpp (compiled here because no Makefile is in boot/)
-client.out: client.cpp boot/boot.cpp | subdirs
-	$(CXX) $(CXXFLAGS) -o $@ client.cpp boot/boot.cpp $(LDFLAGS) $(LIBS)
+# It compiles client.cpp and boot/boot.cpp, linking against all subdirectory libraries.
+client.out: client.cpp $(BOOT_DIR)/boot.cpp subdirs
+	@echo "Building client.out..."
+	$(CXX) $(CXXFLAGS) -o $@ client.cpp $(BOOT_DIR)/boot.cpp $(LDFLAGS) $(LIBS)
 
-# Rule to descend into each subdirectory and build the corresponding targets.
+# Build subdirectories which contain their own Makefiles.
 subdirs:
-	@for d in $(SUBDIRS); do \
-		$(MAKE) -C $$d || exit 1; \
+	@echo "Building libraries in subdirectories: $(LIB_SUBDIRS)"
+	@for d in $(LIB_SUBDIRS); do \
+	  $(MAKE) -C $$d || exit $$?; \
 	done
 
-# Clean: clean the client and then clean in all subdirectories.
+# Clean target cleans the client executable and all libraries in subdirectories.
 clean:
-	@for d in $(SUBDIRS); do \
-		$(MAKE) -C $$d clean; \
+	@echo "Cleaning client.out and subdirectories..."
+	@for d in $(LIB_SUBDIRS); do \
+	  $(MAKE) -C $$d clean; \
 	done
-	rm -f client.out
+	$(RM) client.out
 
-.PHONY: all clean subdirs
+# Extra target: help prints available targets.
+help:
+	@echo "Available targets:"
+	@echo "  all      - Build client.out and all subdirectories"
+	@echo "  clean    - Clean client.out and all subdirectories"
+	@echo "  help     - Show this help message"
+
+.PHONY: all subdirs clean help
