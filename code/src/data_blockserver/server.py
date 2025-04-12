@@ -1,5 +1,6 @@
 from node import Node
 from node import FOLLOWER, LEADER
+from auth import verify_jwt
 from flask import Flask, request, jsonify
 import sys
 import logging
@@ -30,6 +31,14 @@ def value_put():
 
     if n.status == LEADER:
         new_payload = payload.copy()
+        new_payload["value"] = json.loads(new_payload["value"])
+        token = new_payload["value"].get("token")
+
+        userID = verify_jwt(token)
+        if userID is None:
+            reply = {"code": "fail", "message": "Invalid token"}
+            return jsonify(reply)
+        
         existing_payload = n.handle_get(payload)
 
         if (
@@ -41,7 +50,6 @@ def value_put():
             existing_value = json.loads(existing_payload["value"])
             existing_version = int(existing_value["version_number"])
 
-            new_payload["value"] = json.loads(new_payload["value"])
             new_version = int(new_payload["value"]["version_number"])
 
             print("-->", existing_version, " -- ", new_version)

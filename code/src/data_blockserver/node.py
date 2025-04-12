@@ -219,12 +219,11 @@ class Node():
             else:
                 time.sleep(delta)
 
-    def handle_get(self, payload):
-        print("getting", payload)
-        key = payload["key"]
+    def handle_get(self, key):
+        print("getting", key)
         if key in self.DB:
-            payload["value"] = self.DB[key]
-            return payload
+            value = self.DB[key]
+            return value
         else:
             return None
 
