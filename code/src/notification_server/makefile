@@ -1,13 +1,9 @@
-# Makefile for building the notification client and server executables
+# Makefile for building the notification server executable
 
 # Compiler and flags.
 CXX         = g++
 CXXFLAGS    = -std=c++17 -Wall -I. -pthread -O2
 LDFLAGS     = -lboost_system -lboost_thread
-
-# Source files for the client executable.
-CLIENT_SRCS = client.cpp notification_client.cpp 
-CLIENT_OBJS = $(CLIENT_SRCS:.cpp=.o)
 
 # Source files for the server executable.
 SERVER_SRCS = server.cpp notification_server.cpp http_listener.cpp
@@ -15,11 +11,8 @@ SERVER_OBJS = $(SERVER_SRCS:.cpp=.o)
 
 .PHONY: all clean
 
-# Default target builds both client and server.
-all: client.out server.out
-
-client.out: $(CLIENT_OBJS)
-	$(CXX) $(CLIENT_OBJS) -o client.out $(LDFLAGS)
+# Default target builds only the server.
+all: server.out
 
 server.out: $(SERVER_OBJS)
 	$(CXX) $(SERVER_OBJS) -o server.out $(LDFLAGS)
@@ -29,4 +22,4 @@ server.out: $(SERVER_OBJS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o client.out server.out
+	rm -f *.o server.out

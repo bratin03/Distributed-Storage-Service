@@ -51,23 +51,17 @@ int main(int argc, char *argv[])
     MyLogger::info("Notification server is running on " + ip + ":" + std::to_string(notification_port));
 
     // Lambda that handles the HTTP request by parsing the JSON
-    // and forwarding it to the broadcast API.
+    // to retrieve the target user and then broadcasting the exact JSON it receives.
     auto httpRequestHandler = [&notifServer](const std::string &body)
     {
         try
         {
             auto parsed = json::parse(body);
             std::string target_user = parsed.value("user_id", "default");
-            std::string message = parsed.value("message", "No message provided");
-            MyLogger::info("Received HTTP request to broadcast message to user " + target_user);
+            MyLogger::info("Received HTTP request to broadcast to user " + target_user);
 
-            // Construct a notification payload.
-            json notification = {
-                {"message", message},
-                {"timestamp", std::time(nullptr)}};
-
-            // Forward the notification using the broadcast API.
-            notifServer.broadcastNotification(target_user, notification.dump());
+            // Broadcast the exact JSON payload received.
+            notifServer.broadcastNotification(target_user, body);
             MyLogger::info("Broadcasted notification for user " + target_user);
         }
         catch (const std::exception &e)
