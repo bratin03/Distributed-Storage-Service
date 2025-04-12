@@ -28,6 +28,12 @@ namespace fsUtils
         {
             MyLogger::error("Full path does not start with expected base path (" + g_basePath + "): " + fullPath.string());
         }
+        if (key.empty())
+        {
+            MyLogger::info("Key is empty after removing base path, returning 'dropbox'");
+            return "dropbox";
+        }
+
         key = "dropbox/" + key;
         MyLogger::info("Constructed key: " + key);
         return key;

@@ -3,16 +3,16 @@
 
 # Define subdirectories that contain their own make targets.
 # These directories are expected to compile into static libraries.
-SUBDIRS = cache fsUtils load_config login merge metadata boot
+SUBDIRS = cache fsUtils load_config login merge metadata boot serverUtils
 
 # Compiler and linker flags
 CXX      = g++
 CXXFLAGS = -Wall -O2 -g -pg\
-           -I. -Iboot -Icache -IfsUtils -Iload_config -Ilogin -Imerge -Imetadata
+           -I. -Iboot -Icache -IfsUtils -Iload_config -Ilogin -Imerge -Imetadata -IserverUtils
 # Linker flags to look for libraries built in subdirectories.
-LDFLAGS = -Lcache -LfsUtils -Lload_config -Llogin -Lmerge -Lmetadata
+LDFLAGS = -Lcache -LfsUtils -Lload_config -Llogin -Lmerge -Lmetadata -LserverUtils
 # List of static libraries produced in the subdirectories.
-LIBS    = -lcache -lfsUtils -lload_config -llogin -lmerge -lmetadata -lrocksdb -lcrypto -lz -lpthread
+LIBS    = -lfsUtils -lload_config -llogin -lmerge -lmetadata -lserverUtils -lcache -lrocksdb -lcrypto -lz -lpthread 
 
 # Default target; build subdirectories and then build the client executable.
 all: client.out

@@ -111,6 +111,84 @@ namespace boot
         if (resp == nullptr)
         {
             MyLogger::error("Failed to get response from remote directory check for: " + dir_key);
+            return;
+        }
+        MyLogger::info("Remote directory check response: " + resp.dump());
+        // in subdirectories field we have the subdirectories, extract the subdirectories
+        std::set<std::string> subdirectories;
+        if (resp.contains("subdirectories"))
+        {
+            for (const auto &subdir : resp["subdirectories"])
+            {
+                subdirectories.insert(subdir);
+                MyLogger::info("Found subdirectory: " + subdir.get<std::string>());
+            }
+        }
+        std::set<std::string> files;
+        if (resp.contains("files"))
+        {
+            for (const auto &file : resp["files"])
+            {
+                files.insert(file);
+                MyLogger::info("Found file: " + file.get<std::string>());
+            }
+        }
+        metadata::Directory_Metadata dir_metadata(dir_key);
+        if (dir_metadata.loadFromDatabase())
+        {
+            MyLogger::info("Directory metadata loaded from database for: " + dir_key);
+        }
+        else
+        {
+            MyLogger::warning("Directory metadata not found in database for: " + dir_key);
+            return;
+        }
+        // Look for files that are in the database but not in the remote directory
+        for (const auto &file_key : dir_metadata.files)
+        {
+            if (files.find(file_key) == files.end())
+            {
+                MyLogger::info("File not found in remote directory, sending: " + file_key);
+                serverUtils::createFile(file_key);
+            }
+        }
+        // Look for subdirectories that are in the database but not in the remote directory
+        for (const auto &subdir_key : dir_metadata.directories)
+        {
+            if (subdirectories.find(subdir_key) == subdirectories.end())
+            {
+                MyLogger::info("Subdirectory not found in remote directory, sending: " + subdir_key);
+                sendDirRecursively(subdir_key);
+            }
+            else
+            {
+                localToRemoteDirCheck(subdir_key);
+            }
+        }
+    }
+    void sendDirRecursively(const std::string &dir_key)
+    {
+        MyLogger::info("Sending directory recursively: " + dir_key);
+        serverUtils::createDir(dir_key);
+        metadata::Directory_Metadata dir_metadata(dir_key);
+        if (dir_metadata.loadFromDatabase())
+        {
+            MyLogger::info("Directory metadata loaded from database for: " + dir_key);
+        }
+        else
+        {
+            MyLogger::warning("Directory metadata not found in database for: " + dir_key);
+            return;
+        }
+        for (const auto &file_key : dir_metadata.files)
+        {
+            MyLogger::info("Sending file: " + file_key);
+            serverUtils::createFile(file_key);
+        }
+
+        for (const auto &subdir_key : dir_metadata.directories)
+        {
+            sendDirRecursively(subdir_key);
         }
     }
 }

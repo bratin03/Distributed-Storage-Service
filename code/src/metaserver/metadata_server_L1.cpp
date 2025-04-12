@@ -126,6 +126,8 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
                 res.set_content(R"({"error": "Failed to parse existing directory metadata"})", "application/json");
                 return;
             }
+            MyLogger::debug("Existing directory metadata: " + existing_metadata.dump());
+            return;
         }
 
         std::string parent_dir, parent_key;
@@ -171,8 +173,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"subdirectories", json::array()},
-            {"files", json::array()},
-            {"deleted", false}};
+            {"files", json::array()}};
 
         auto set_result = Database_handler::set_directory_metadata(key, new_metadata);
         if (!set_result.success)
@@ -393,8 +394,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"owner", userID},
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"size", 0},
-            {"version", 1},
-            {"deleted", false}};
+            {"version", 1}};
 
         // Update parent metadata with new file entry.
         auto &files = parent_metadata["files"];

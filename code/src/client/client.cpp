@@ -8,6 +8,7 @@
 #include <rocksdb/options.h>
 #include "logger/Mylogger.hpp"
 #include "boot/boot.hpp"
+#include "serverUtils/serverUtils.hpp"
 
 using json = nlohmann::json;
 
@@ -48,6 +49,8 @@ int main(int argc, char *argv[])
     // Initialize file system utilities.
     auto monitoring_path = ConfigReader::get_config_string("monitoring_path", user_info);
     fsUtils::initialize(monitoring_path, login::username);
+
+    serverUtils::initializeCache();
 
     boot::localSync();
 
