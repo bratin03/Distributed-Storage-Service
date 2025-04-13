@@ -696,7 +696,7 @@ void block_server_confirmation(const httplib::Request &req, httplib::Response &r
         MyLogger::debug("Processing block server confirmation for file: " + file_path + " by user: " + userID);
 
         json notification_payload = {
-            {"type", "FILE+"},
+            {"type", "FILE~"},
             {"user_id", userID},
             {"path", file_path}};
         Initiation::broadcaster->broadcast(notification_payload);

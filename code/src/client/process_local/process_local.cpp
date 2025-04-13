@@ -48,16 +48,21 @@ namespace process_local
     {
         MyLogger::info("Processing event: " + std::to_string(static_cast<int>(event.eventType)) +
                        " for path: " + event.path);
+        if (event.fileType == watcher::FileType::File && fs::path(event.path).extension() != ".txt")
+        {
+            MyLogger::info("Ignoring non-txt file: " + event.path);
+            return;
+        }
         auto &eventType = event.eventType;
         if (eventType == watcher::InotifyEventType::Created ||
             eventType == watcher::InotifyEventType::MovedTo)
         {
             auto key = fsUtils::buildKeyfromFullPath(event.path);
-            if(event.fileType == watcher::FileType::File)
+            if (event.fileType == watcher::FileType::File)
             {
                 create_file(key);
             }
-            else if(event.fileType == watcher::FileType::Directory)
+            else if (event.fileType == watcher::FileType::Directory)
             {
                 create_directory(key);
             }
@@ -68,6 +73,13 @@ namespace process_local
         }
         else if (eventType == watcher::InotifyEventType::Modified)
         {
+            auto key = fsUtils::buildKeyfromFullPath(event.path);
+            file_modified(key);
+        }
+        else if (eventType == watcher::InotifyEventType::MovedFrom)
+        {
+            auto key = fsUtils::buildKeyfromFullPath(event.path);
+            delete_event(key, event.fileType);
         }
         else if (eventType == watcher::InotifyEventType::Deleted ||
                  eventType == watcher::InotifyEventType::MovedFrom)
@@ -104,13 +116,14 @@ namespace process_local
         MyLogger::info("Creating file: " + path);
 
         metadata::File_Metadata fileMetadata(path);
-        if(fileMetadata.loadFromDatabase())
+        if (fileMetadata.loadFromDatabase())
         {
             MyLogger::info("File already exists in database: " + path);
-            return;
         }
-        fileMetadata.storeToDatabase();
-
+        else
+        {
+            fileMetadata.storeToDatabase();
+        }
         metadata::addFileToDirectory(path);
         serverUtils::createFile(path);
         serverUtils::uploadFile(path);
@@ -122,7 +135,7 @@ namespace process_local
         MyLogger::info("Creating directory: " + path);
 
         metadata::Directory_Metadata dirMetadata(path);
-        if(dirMetadata.loadFromDatabase())
+        if (dirMetadata.loadFromDatabase())
         {
             MyLogger::info("Directory already exists in database: " + path);
             return;
@@ -130,6 +143,37 @@ namespace process_local
 
         metadata::addDirectoryToDirectory(path);
         serverUtils::createDir(path);
+        // Add the directory to the database
+        if (dirMetadata.storeToDatabase())
+        {
+            MyLogger::info("Directory metadata stored to database: " + path);
+        }
+        else
+        {
+            MyLogger::error("Failed to store directory metadata to database: " + path);
+            return;
+        }
         MyLogger::info("Directory created: " + path);
+    }
+
+    void file_modified(const std::string &path)
+    {
+        MyLogger::info("File modified: " + path);
+        // Implement file modification logic here
+        auto fileContent = fsUtils::readTextFile(path);
+        metadata::File_Metadata fileMetadata(path);
+        if (!fileMetadata.loadFromDatabase())
+        {
+            MyLogger::error("Failed to load file metadata from database for: " + path);
+            return;
+        }
+        // compare the hash of the file content with the hash in the database
+        auto hash = fsUtils::computeSHA256Hash(fileContent);
+        if (fileMetadata.content_hash == hash)
+        {
+            MyLogger::info("File content is unchanged: " + path);
+            return;
+        }
+        serverUtils::uploadFile(path);
     }
 }

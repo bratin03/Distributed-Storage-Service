@@ -63,8 +63,6 @@ void DeletionManager::process()
         lock.unlock();
 
         // Now we have a batch, so let's process it
-        MyLogger::info("Processing batch with " + std::to_string(batch.size()) + " keys.");
-
         for (const auto &key : batch)
         {
             MyLogger::info("Deleting block data for key: " + key);

@@ -23,4 +23,5 @@ namespace process_local
     void delete_event(const std::string &path, watcher::FileType filetype);
     void create_file(const std::string &path);
     void create_directory(const std::string &path);
+    void file_modified(const std::string &path);
 } // namespace process_local
