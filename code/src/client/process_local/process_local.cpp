@@ -45,5 +45,43 @@ namespace process_local
     {
         MyLogger::info("Processing event: " + std::to_string(static_cast<int>(event.eventType)) +
                        " for path: " + event.path);
+        auto &eventType = event.eventType;
+        if (eventType == watcher::InotifyEventType::Created ||
+            eventType == watcher::InotifyEventType::MovedTo)
+        {
+
+        }
+        else if (eventType == watcher::InotifyEventType::Modified)
+        {
+
+        }
+        else if (eventType == watcher::InotifyEventType::Deleted ||
+                 eventType == watcher::InotifyEventType::MovedFrom)
+        {
+            auto key = fsUtils::buildKeyfromFullPath(event.path);
+            delete_event(key, event.fileType);
+        }
+    }
+
+    void delete_event(const std::string &path, watcher::FileType filetype)
+    {
+        if (filetype == watcher::FileType::File)
+        {
+            MyLogger::info("Deleting file: " + path);
+            metadata::removeFileFromDatabase(path);
+            metadata::removeFileFromDirectory(path);
+            serverUtils::deleteFile(path);
+        }
+        else if (filetype == watcher::FileType::Directory)
+        {
+            MyLogger::info("Deleting directory: " + path);
+            metadata::removeDirectoryFromDatabase(path);
+            metadata::removeDirectoryFromDirectory(path);
+            serverUtils::deleteFile(path);
+        }
+        else
+        {
+            MyLogger::error("Unknown file type for path: " + path);
+        }
     }
 }

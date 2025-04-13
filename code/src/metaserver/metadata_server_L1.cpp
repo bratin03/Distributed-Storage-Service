@@ -545,7 +545,6 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
     std::string key = userID + ":" + path;
     size_t slash = path.find_last_of('/');
     std::string parent_dir = path.substr(0, slash);
-    std::string name = path.substr(slash + 1);
     std::string parent_key = userID + ":" + parent_dir;
 
     // Is it a file? (Ends with .txt)
@@ -572,7 +571,7 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
         if (is_file && parent_meta["files"].is_array())
         {
             auto &files = parent_meta["files"];
-            files.erase(std::remove(files.begin(), files.end(), name), files.end()); // remove the file from the parent directory
+            files.erase(std::remove(files.begin(), files.end(), path), files.end()); // remove the file from the parent directory
             DeletionManager::instance.enqueue(key);                                  // remove the data form the block storage
 
             // Notify the notification server about the new file.
@@ -586,7 +585,7 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
         else if (!is_file && parent_meta["subdirectories"].is_array())
         {
             auto &dirs = parent_meta["subdirectories"];
-            dirs.erase(std::remove(dirs.begin(), dirs.end(), name), dirs.end()); // remove the directory from the parent directory
+            dirs.erase(std::remove(dirs.begin(), dirs.end(), path), dirs.end()); // remove the directory from the parent directory
             // Notify the notification server about the new file.
             json notification_payload = {
                 {"type", "DIR-"},

@@ -314,4 +314,19 @@ namespace serverUtils
         }
     }
 
+    bool deleteFile(const std::string &file_key)
+    {
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/delete", json{{"path", file_key}});
+        if (resp == nullptr)
+        {
+            MyLogger::error("Failed to delete file: " + file_key);
+            return false;
+        }
+        else
+        {
+            MyLogger::debug("Response from delete file: " + resp.dump(4));
+        }
+        return true;
+    }
+
 } // namespace serverUtils

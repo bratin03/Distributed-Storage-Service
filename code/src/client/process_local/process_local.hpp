@@ -1,6 +1,9 @@
 #pragma once
 #include "../watcher/watcher.hpp"
 #include "../logger/Mylogger.hpp"
+#include "../metadata/metadata.hpp"
+#include "../fsUtils/fsUtils.hpp"
+#include "../serverUtils/serverUtils.hpp"
 
 namespace process_local
 {
@@ -15,4 +18,6 @@ namespace process_local
         std::condition_variable &cv);
 
     void process_event(watcher::FileEvent &event);
+
+    void delete_event(const std::string &path, watcher::FileType filetype);
 } // namespace process_local

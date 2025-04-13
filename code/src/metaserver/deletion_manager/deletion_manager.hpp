@@ -27,4 +27,5 @@ private:
     std::thread worker_thread;
     bool stop_thread;
     const size_t BATCH_SIZE_THRESHOLD ;
+    const unsigned int MAX_WAIT_TIME;
 };

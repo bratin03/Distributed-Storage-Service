@@ -5,12 +5,15 @@
 
 DeletionManager DeletionManager::instance;
 
-DeletionManager::DeletionManager() : stop_thread(false), BATCH_SIZE_THRESHOLD(10) {
+DeletionManager::DeletionManager() : stop_thread(false), BATCH_SIZE_THRESHOLD(10),
+                                     MAX_WAIT_TIME(3000)
+{
     MyLogger::info("DeletionManager initialized starting worker thread");
     worker_thread = std::thread(&DeletionManager::process, this);
 }
 
-DeletionManager::~DeletionManager() {
+DeletionManager::~DeletionManager()
+{
 
     MyLogger::info("Stopping DeletionManager worker thread");
 
@@ -20,14 +23,16 @@ DeletionManager::~DeletionManager() {
         cv.notify_all();
         MyLogger::info("Worker thread notified to stop");
     }
-    if (worker_thread.joinable()) {
+    if (worker_thread.joinable())
+    {
         MyLogger::info("Waiting for worker thread to finish");
         worker_thread.join();
         MyLogger::info("Worker thread finished");
     }
 }
 
-void DeletionManager::enqueue(const std::string &key) {
+void DeletionManager::enqueue(const std::string &key)
+{
     {
         std::lock_guard<std::mutex> lock(queue_mutex);
         deletion_queue.push_back(key);
@@ -36,18 +41,22 @@ void DeletionManager::enqueue(const std::string &key) {
     cv.notify_all();
 }
 
-void DeletionManager::process() {
-    while (true) {
+void DeletionManager::process()
+{
+    while (true)
+    {
         std::unique_lock<std::mutex> lock(queue_mutex);
-        
-        // Wait until there are enough items in the queue or the thread is stopped
-        cv.wait(lock, [&] { return deletion_queue.size() >= BATCH_SIZE_THRESHOLD || stop_thread; });
 
-        if (stop_thread && deletion_queue.empty()) break;
+        // Wait until there are enough items in the queue or timeout occurs
+        cv.wait_for(lock, std::chrono::milliseconds(MAX_WAIT_TIME), [&]
+                    { return deletion_queue.size() >= BATCH_SIZE_THRESHOLD || stop_thread; });
+
+        if (stop_thread && deletion_queue.empty())
+            break;
 
         // Move all the elements from the queue to a batch
         std::vector<std::string> batch = std::move(deletion_queue);
-        
+
         // Reinitialize the deletion queue to empty
         deletion_queue.clear();
 
@@ -55,14 +64,15 @@ void DeletionManager::process() {
 
         // Now we have a batch, so let's process it
         MyLogger::info("Processing batch with " + std::to_string(batch.size()) + " keys.");
-        
-        for (const auto& key : batch) {
+
+        for (const auto &key : batch)
+        {
             MyLogger::info("Deleting block data for key: " + key);
             auto res = Database_handler::delete_blockdata(key);
-            if (!res.success) {
+            if (!res.success)
+            {
                 MyLogger::warning("Failed to delete block data for key " + key + " | error: " + res.err);
             }
         }
     }
 }
-
