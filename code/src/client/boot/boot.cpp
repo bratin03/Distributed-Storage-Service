@@ -108,7 +108,8 @@ namespace boot
     void localToRemoteDirCheck(const std::string &dir_key)
     {
         MyLogger::info("Checking remote directory: " + dir_key);
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
+        auto payload = json{{"path", dir_key}};
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", payload);
         if (resp == nullptr)
         {
             MyLogger::error("Failed to get response from server for list-directory");
@@ -238,7 +239,8 @@ namespace boot
         }
 
         // Now make a request to the server to get the remote file keys
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
+        auto payload = json{{"path", dir_key}};
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", payload);
 
         if (resp == nullptr)
         {
@@ -302,7 +304,8 @@ namespace boot
             MyLogger::warning("Directory metadata not found in database for: " + dir_key);
         }
         // Make a request to the server to get the files in the directory
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", json{{"path", dir_key}});
+        auto payload = json{{"path", dir_key}};
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/list-directory", payload);
         if (resp == nullptr)
         {
             MyLogger::error("Failed to get response from server for list-directory");

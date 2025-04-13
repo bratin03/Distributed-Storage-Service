@@ -19,12 +19,15 @@ namespace notification
         int server_port,
         const std::string &user_id,
         std::queue<json> &notification_queue,
-        std::mutex &queue_mutex) : server_ip_(server_ip),
-                                   server_port_(server_port),
-                                   user_id_(user_id),
-                                   notification_queue_(notification_queue),
-                                   queue_mutex_(queue_mutex),
-                                   running_(false) {}
+        std::mutex &queue_mutex,
+        std::condition_variable &queue_cv)
+        : server_ip_(server_ip),
+          server_port_(server_port),
+          user_id_(user_id),
+          notification_queue_(notification_queue),
+          queue_mutex_(queue_mutex),
+          cv_(queue_cv),
+          running_(false) {}
 
     NotificationClient::~NotificationClient()
     {
@@ -102,6 +105,7 @@ namespace notification
             {
                 std::lock_guard<std::mutex> lock(queue_mutex_);
                 notification_queue_.push(notification);
+                cv_.notify_one(); // Notify the waiting thread that a new notification is available.
             }
         }
         catch (json::parse_error &e)

@@ -21,7 +21,8 @@ namespace notification
             int server_port,
             const std::string &user_id,
             std::queue<nlohmann::json> &notification_queue,
-            std::mutex &queue_mutex);
+            std::mutex &queue_mutex,
+            std::condition_variable &cv);
 
         ~NotificationClient();
 
@@ -37,8 +38,9 @@ namespace notification
         std::string user_id_;
         std::queue<nlohmann::json> &notification_queue_;
         std::mutex &queue_mutex_;
-        std::atomic<bool> running_;
         std::thread client_thread_;
+        std::condition_variable &cv_;
+        std::atomic<bool> running_;
 
         void run();
         void poll_notifications();

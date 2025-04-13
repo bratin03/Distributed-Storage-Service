@@ -507,7 +507,8 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
             json notification_payload = {
                 {"type", "FILE-"},
                 {"user_id", userID},
-                {"path", path}};
+                {"path", path},
+                {"device_id", device_id}};
             MyLogger::debug("Broadcasting notification for delete file: " + path);
             Initiation::broadcaster->broadcast(notification_payload);
         }

@@ -13,6 +13,7 @@
 #include "notification/notification.hpp"
 #include "watcher/watcher.hpp"
 #include "process_local/process_local.hpp"
+#include "process_remote/process_remote.hpp"
 
 using json = nlohmann::json;
 
@@ -70,13 +71,18 @@ int main(int argc, char *argv[])
 
     std::queue<json> notification_queue;
     std::mutex queue_mutex;
+    std::condition_variable notification_cv;
+
+    std::thread notification_thread([&]()
+                                    { process_remote::process_remote_events(notification_queue, queue_mutex, notification_cv, db_mutex); });
 
     notification::NotificationClient notification_client(
         serverUtils::notificationLoadBalancerip,
         serverUtils::notificationLoadBalancerPort,
         login::username,
         notification_queue,
-        queue_mutex);
+        queue_mutex,
+        notification_cv);
 
     notification_client.start();
 
@@ -94,6 +100,7 @@ int main(int argc, char *argv[])
 
     watcher_thread.join();
     process_thread.join();
+    notification_thread.join();
 
     return 0;
 }

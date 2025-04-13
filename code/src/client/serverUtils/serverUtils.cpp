@@ -80,7 +80,7 @@ namespace serverUtils
                 return false;
             }
         }
-        auto response = distributed_KV::setFile(endpoints, file_key, content, version, login::token);
+        auto response = distributed_KV::setFile(endpoints, file_key, content, version, login::token,serverUtils::device_id);
         if (response.success)
         {
             MyLogger::info("File uploaded successfully to: " + file_key);
