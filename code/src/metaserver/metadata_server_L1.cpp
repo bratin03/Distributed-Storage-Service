@@ -158,7 +158,7 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         }
 
         // Update parent directory metadata to include the new directory.
-        if (!parent_key.empty())  // check required?????
+        if (!parent_key.empty()) // check required?????
         {
             // Update parent metadata
             auto &subdirs = parent_metadata["subdirectories"];
@@ -375,7 +375,7 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())},
             {"parent_dir", parent_dir},
             {"filename", file_path},
-            {"size", 0},  // any use??
+            {"size", 0}, // any use??
             {"version", 1}};
 
         // Update parent metadata with new file entry.
@@ -534,7 +534,6 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
         return;
     }
 
-
     if (!body.contains("path"))
     {
         res.status = 400;
@@ -549,8 +548,8 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
     std::string name = path.substr(slash + 1);
     std::string parent_key = userID + ":" + parent_dir;
 
-    // Is it a file? (Ends with .txt) 
-    bool is_file = path.size() >= 4 && path.substr(path.size() - 4) == ".txt";  // >=4 or >4 ?? doesnt really matter
+    // Is it a file? (Ends with .txt)
+    bool is_file = path.size() >= 4 && path.substr(path.size() - 4) == ".txt"; // >=4 or >4 ?? doesnt really matter
 
     auto meta = Database_handler::get_directory_metadata(key);
     if (!meta.success)
@@ -573,26 +572,39 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
         if (is_file && parent_meta["files"].is_array())
         {
             auto &files = parent_meta["files"];
-            files.erase(std::remove(files.begin(), files.end(), name), files.end());  // remove the file from the parent directory
-            DeletionManager::instance.enqueue(key);  // remove the data form the block storage
+            files.erase(std::remove(files.begin(), files.end(), name), files.end()); // remove the file from the parent directory
+            DeletionManager::instance.enqueue(key);                                  // remove the data form the block storage
 
+            // Notify the notification server about the new file.
+            json notification_payload = {
+                {"type", "FILE-"},
+                {"user_id", userID},
+                {"path", path}};
+            MyLogger::debug("Broadcasting notification for delete file: " + path);
+            Initiation::broadcaster->broadcast(notification_payload);
         }
         else if (!is_file && parent_meta["subdirectories"].is_array())
         {
             auto &dirs = parent_meta["subdirectories"];
             dirs.erase(std::remove(dirs.begin(), dirs.end(), name), dirs.end()); // remove the directory from the parent directory
+            // Notify the notification server about the new file.
+            json notification_payload = {
+                {"type", "DIR-"},
+                {"user_id", userID},
+                {"path", path}};
+            MyLogger::debug("Broadcasting notification for delete Directory: " + path);
+            Initiation::broadcaster->broadcast(notification_payload);
         }
 
         Database_handler::set_directory_metadata(parent_key, parent_meta);
     }
-    else{
+    else
+    {
         if (is_file)
         {
             MyLogger::warning("Parent directory not found for key: " + parent_key + "proceeding to deleting the file anyways");
-            DeletionManager::instance.enqueue(key);  // remove the data form the block storage
-
+            DeletionManager::instance.enqueue(key); // remove the data form the block storage
         }
-
     }
 
     res.set_content(R"({"message": "Path deleted"})", "application/json");
@@ -603,7 +615,7 @@ void get_file_endpoints(const httplib::Request &req, httplib::Response &res)
     MyLogger::info("Received request to get file endpoints");
     std::string userID;
     if (!Authentication::authenticate_request(req, res, userID))
-    return;
+        return;
 
     json body;
     try
@@ -741,7 +753,7 @@ int main(int argc, char *argv[])
     svr.Post("/get-file-endpoints", get_file_endpoints);
     svr.Post("/block-server-confirmation", block_server_confirmation);
     svr.Post("/delete", delete_path);
-     // Instantiate the DeletionManager to start the background thread
+    // Instantiate the DeletionManager to start the background thread
     /*
         instance of deletion manager is already created in deletion_manager.cpp
         deletion manager is a singleton class

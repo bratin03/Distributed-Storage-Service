@@ -82,6 +82,8 @@ if __name__ == "__main__":
         http, host, port = my_ip.split(':')
         # initialize node with ip list and its own ip
         n = Node(ip_list, my_ip)
-        app.run(host="0.0.0.0", port=int(port), debug=False)
+        
+        host = host.lstrip("/")
+        app.run(host, port=int(port), debug=False)
     else:
         print("usage: python server.py <index> <ip_list_file>")
