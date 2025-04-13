@@ -15,9 +15,12 @@ namespace process_local
         std::queue<watcher::FileEvent> &eventQueue,
         std::set<watcher::FileEvent> &eventMap,
         std::mutex &mtx,
-        std::condition_variable &cv);
+        std::condition_variable &cv,
+        std::mutex &db_mutex);
 
     void process_event(watcher::FileEvent &event);
 
     void delete_event(const std::string &path, watcher::FileType filetype);
+    void create_file(const std::string &path);
+    void create_directory(const std::string &path);
 } // namespace process_local

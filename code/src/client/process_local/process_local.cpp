@@ -16,7 +16,8 @@ namespace process_local
         std::queue<watcher::FileEvent> &eventQueue,
         std::set<watcher::FileEvent> &eventMap,
         std::mutex &mtx,
-        std::condition_variable &cv)
+        std::condition_variable &cv,
+        std::mutex &db_mutex)
     {
         while (true)
         {
@@ -36,7 +37,9 @@ namespace process_local
                 watcher::FileEvent event = eventQueue.front();
                 eventQueue.pop();
                 eventMap.erase(event); // Remove the event from the set
+                db_mutex.lock();
                 process_event(event);
+                db_mutex.unlock();
             }
         }
     }
@@ -49,11 +52,22 @@ namespace process_local
         if (eventType == watcher::InotifyEventType::Created ||
             eventType == watcher::InotifyEventType::MovedTo)
         {
-
+            auto key = fsUtils::buildKeyfromFullPath(event.path);
+            if(event.fileType == watcher::FileType::File)
+            {
+                create_file(key);
+            }
+            else if(event.fileType == watcher::FileType::Directory)
+            {
+                create_directory(key);
+            }
+            else
+            {
+                MyLogger::error("Unknown file type for path: " + event.path);
+            }
         }
         else if (eventType == watcher::InotifyEventType::Modified)
         {
-
         }
         else if (eventType == watcher::InotifyEventType::Deleted ||
                  eventType == watcher::InotifyEventType::MovedFrom)
@@ -83,5 +97,39 @@ namespace process_local
         {
             MyLogger::error("Unknown file type for path: " + path);
         }
+    }
+
+    void create_file(const std::string &path)
+    {
+        MyLogger::info("Creating file: " + path);
+
+        metadata::File_Metadata fileMetadata(path);
+        if(fileMetadata.loadFromDatabase())
+        {
+            MyLogger::info("File already exists in database: " + path);
+            return;
+        }
+        fileMetadata.storeToDatabase();
+
+        metadata::addFileToDirectory(path);
+        serverUtils::createFile(path);
+        serverUtils::uploadFile(path);
+        MyLogger::info("File created and uploaded: " + path);
+    }
+
+    void create_directory(const std::string &path)
+    {
+        MyLogger::info("Creating directory: " + path);
+
+        metadata::Directory_Metadata dirMetadata(path);
+        if(dirMetadata.loadFromDatabase())
+        {
+            MyLogger::info("Directory already exists in database: " + path);
+            return;
+        }
+
+        metadata::addDirectoryToDirectory(path);
+        serverUtils::createDir(path);
+        MyLogger::info("Directory created: " + path);
     }
 }

@@ -66,6 +66,8 @@ int main(int argc, char *argv[])
 
     boot::localToRemote();
 
+    std::mutex db_mutex;
+
     std::queue<json> notification_queue;
     std::mutex queue_mutex;
 
@@ -80,15 +82,15 @@ int main(int argc, char *argv[])
 
     std::queue<watcher::FileEvent> eventQueue;
     std::set<watcher::FileEvent> eventMap;
-    std::mutex mtx;
+    std::mutex watcher_mtx;
     std::condition_variable cv;
 
     std::thread process_thread([&]()
-                               { process_local::process_local_events(eventQueue, eventMap, mtx, cv); });
+                               { process_local::process_local_events(eventQueue, eventMap, watcher_mtx, cv, db_mutex); });
 
     // Create watcher thread
     std::thread watcher_thread([&]()
-                               { watcher::watch_directory(monitoring_path, eventQueue, eventMap, mtx, cv); });
+                               { watcher::watch_directory(monitoring_path, eventQueue, eventMap, watcher_mtx, cv); });
 
     watcher_thread.join();
     process_thread.join();
