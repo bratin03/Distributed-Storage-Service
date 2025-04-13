@@ -177,24 +177,25 @@ namespace distributed_KV
         return res;
     }
 
-    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &value)
+    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token,const std::string &device_id, const std::string &value)
     {
         printf("Setting key: %s with value: %s\n", key.c_str(), value.c_str());
-        nlohmann::json payload = {{"key", key}, {"token", token}, {"value", value}};
+        nlohmann::json payload = {{"key", key}, {"token", token},{"device_id",device_id}, {"value", value}};
         nlohmann::json message = {{"type", "put"}, {"payload", payload}};
         return tryServers(servers, "put", message);
     }
 
-    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token)
+    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token,const std::string &device_id)
     {
-        return set(servers, key, token, DELETE_VALUE);
+        return set(servers, key, token,device_id, DELETE_VALUE);
     }
 
     FileKVResponse setFile(const std::vector<std::string> &servers,
                            const std::string &filePath,
                            const std::string &file_content,
                            const std::string &version,
-                           const std::string &token)
+                           const std::string &token,
+                           const std::string &device_id)
     {
         FileKVResponse response;
         try
@@ -203,7 +204,7 @@ namespace distributed_KV
             j["version_number"] = version;
             j["data"] = file_content;
             // Use filePath as the key
-            Response setResp = set(servers, filePath, token, j.dump());
+            Response setResp = set(servers, filePath, token,device_id, j.dump());
             response.success = setResp.success;
             if (setResp.success)
             {
@@ -253,10 +254,11 @@ namespace distributed_KV
 
     FileKVResponse deleteFile(const std::vector<std::string> &servers,
                               const std::string &filePath,
-                              const std::string &token)
+                              const std::string &token,
+                              const std::string &device_id)
     {
         FileKVResponse response;
-        Response delResp = del(servers, filePath, token);
+        Response delResp = del(servers, filePath, token,device_id);
         response.success = delResp.success;
         if (delResp.success)
         {
