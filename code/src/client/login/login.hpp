@@ -12,7 +12,7 @@ namespace login
     void handle_user_info(int argc, char *argv[], json &user_info, const std::string &user_info_config_path);
     bool signup(const std::string &username, const std::string &password);
     bool login();
-    json makeRequest(std::string &ip, unsigned short &port, const std::string &path, const json &payload);
+    json makeRequest(std::string &ip, unsigned short &port, const std::string &path, json &payload);
     extern std::string signUpLoadBalancerip;
     extern unsigned short signUpLoadBalancerPort;
     extern std::string loginLoadBalancerip;

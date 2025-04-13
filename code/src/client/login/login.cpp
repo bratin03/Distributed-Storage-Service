@@ -159,8 +159,11 @@ namespace login
         }
     }
 
-    json makeRequest(std::string &ip, unsigned short &port, const std::string &path, const json &payload)
+    json makeRequest(std::string &ip, unsigned short &port, const std::string &path,  json &payload)
     {
+        // In payload add field "device_id"
+        payload["device_id"] = serverUtils::device_id;
+
         // If token is empty, login first
         if (token.empty())
         {

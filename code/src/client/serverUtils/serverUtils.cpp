@@ -26,7 +26,8 @@ namespace serverUtils
 
     json createFile(const std::string &file_key)
     {
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/create-file", json{{"path", file_key}});
+        json payload = {{"path", file_key}};
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/create-file", payload);
         if (resp == nullptr)
         {
             MyLogger::error("Failed to create file: " + file_key);
@@ -40,7 +41,8 @@ namespace serverUtils
 
     json createDir(const std::string &dir_key)
     {
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/create-directory", json{{"path", dir_key}});
+        auto payload = json{{"path", dir_key}};
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/create-directory", payload);
         if (resp == nullptr)
         {
             MyLogger::error("Failed to create directory: " + dir_key);
@@ -112,7 +114,8 @@ namespace serverUtils
             MyLogger::info("Cache hit for file endpoints: " + file_key);
             return cachedEndpoints;
         }
-        auto response = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/get-file-endpoints", json{{"path", file_key}});
+        auto payload = json{{"path", file_key}};
+        auto response = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/get-file-endpoints", payload);
         // Check if the JSON object contains the key "endpoints" and if it's an array.
         if (response == nullptr)
         {
@@ -316,7 +319,8 @@ namespace serverUtils
 
     bool deleteFile(const std::string &file_key)
     {
-        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/delete", json{{"path", file_key}});
+        auto payload = json{{"path", file_key}};
+        auto resp = login::makeRequest(login::metaLoadBalancerip, login::metaLoadBalancerPort, "/delete", payload);
         if (resp == nullptr)
         {
             MyLogger::error("Failed to delete file: " + file_key);

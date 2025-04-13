@@ -73,6 +73,16 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
             return;
         }
 
+        if (!body_json.contains("device_id"))
+        {
+            res.status = 400;
+            MyLogger::warning("Directory creation failed: Missing device_id in request body");
+            res.set_content(R"({"error": "Missing device_id"})", "application/json");
+            return;
+        }
+
+        std::string device_id = body_json["device_id"];
+
         std::string dir_id = body_json["path"];
         std::string key = userID + ":" + dir_id;
         MyLogger::debug("Processing directory creation for key: " + key);
@@ -191,7 +201,8 @@ void create_directory(const httplib::Request &req, httplib::Response &res)
         json notification_payload = {
             {"type", "DIR+"},
             {"user_id", userID},
-            {"path", dir_id}};
+            {"path", dir_id},
+            {"device_id", device_id}};
         MyLogger::debug("Broadcasting notification for new directory: " + dir_id);
         Initiation::broadcaster->broadcast(notification_payload);
     }
@@ -293,6 +304,15 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             res.set_content(R"({"error": "Missing path"})", "application/json");
             return;
         }
+
+        if (!body_json.contains("device_id"))
+        {
+            res.status = 400;
+            MyLogger::warning("File creation failed: Missing device_id in request body");
+            res.set_content(R"({"error": "Missing device_id"})", "application/json");
+            return;
+        }
+        std::string device_id = body_json["device_id"];
 
         std::string file_path = body_json["path"];
         std::string key = userID + ":" + file_path;
@@ -401,7 +421,8 @@ void create_file(const httplib::Request &req, httplib::Response &res)
         json notification_payload = {
             {"type", "FILE+"},
             {"user_id", userID},
-            {"path", file_path}};
+            {"path", file_path},
+            {"device_id", device_id}};
         MyLogger::debug("Broadcasting notification for new file: " + file_path);
         Initiation::broadcaster->broadcast(notification_payload);
     }
@@ -409,107 +430,6 @@ void create_file(const httplib::Request &req, httplib::Response &res)
     {
         res.status = 500;
         MyLogger::error("Exception in create_file: " + std::string(e.what()));
-        res.set_content(R"({"error": "Internal server error"})", "application/json");
-    }
-}
-
-void update_file(const httplib::Request &req, httplib::Response &res)
-{
-    MyLogger::info("Received file update request");
-
-    std::string userID;
-    if (!Authentication::authenticate_request(req, res, userID))
-    {
-        MyLogger::warning("Authentication failed during file update");
-        if (res.body.empty())
-        {
-            res.status = 401;
-            res.set_content(R"({"error": "Authentication failed"})", "application/json");
-        }
-        return;
-    }
-
-    try
-    {
-        json body_json = json::parse(req.body);
-        if (!body_json.contains("path") || !body_json.contains("version"))
-        {
-            res.status = 400;
-            MyLogger::warning("File update failed: Missing path or version in request body");
-            res.set_content(R"({"error": "Missing path or version"})", "application/json");
-            return;
-        }
-
-        std::string file_path = body_json["path"];
-        int client_version = body_json["version"];
-        std::string key = userID + ":" + file_path;
-        MyLogger::debug("Processing file update for key: " + key + " | Client version: " + std::to_string(client_version));
-
-        auto kv_response = Database_handler::get_directory_metadata(key);
-        if (!kv_response.success)
-        {
-            res.status = 404;
-            MyLogger::warning("File update failed: File not found for key: " + key);
-            res.set_content(R"({"error": "File not found"})", "application/json");
-            return;
-        }
-
-        json metadata;
-        try
-        {
-            metadata = json::parse(kv_response.value);
-            if (metadata.is_string())
-            {
-                try
-                {
-                    metadata = json::parse(metadata.get<std::string>());
-                }
-                catch (const std::exception &e)
-                {
-                    MyLogger::error("Failed to parse inner file metadata for key: " + key + " | Exception: " + std::string(e.what()));
-                    res.status = 500;
-                    res.set_content(R"({"error": "Failed to parse inner metadata"})", "application/json");
-                    return;
-                }
-            }
-        }
-        catch (const std::exception &e)
-        {
-            res.status = 500;
-            MyLogger::error("Failed to parse file metadata for key: " + key + " | Exception: " + std::string(e.what()));
-            res.set_content(R"({"error": "Failed to parse file metadata"})", "application/json");
-            return;
-        }
-
-        MyLogger::debug("Current file metadata for key: " + key + " | Data: " + metadata.dump());
-        int current_version = metadata.value("version", 1); // Default version 1 if not set
-
-        auto &block_servers = Database_handler::select_block_server_group(key);
-
-        if (client_version == current_version)
-        {
-            res.status = 200;
-            json response_json = {
-                {"status", "ok"},
-                {"servers", block_servers}};
-            res.set_content(response_json.dump(), "application/json");
-            MyLogger::info("File update accepted for key: " + key);
-        }
-        else
-        {
-            res.status = 409;
-            json response_json = {
-                {"status", "outdated"},
-                {"current_version", current_version},
-                {"servers", block_servers}};
-            res.set_content(response_json.dump(), "application/json");
-            MyLogger::warning("File update rejected due to version mismatch for key: " + key);
-        }
-    }
-    catch (const std::exception &e)
-    {
-        res.status = 500;
-        MyLogger::error("Exception in update_file: " + std::string(e.what()));
         res.set_content(R"({"error": "Internal server error"})", "application/json");
     }
 }
@@ -540,6 +460,15 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
         res.set_content(R"({"error": "Missing path"})", "application/json");
         return;
     }
+
+    if (!body.contains("device_id"))
+    {
+        res.status = 400;
+        MyLogger::warning("Delete request failed: Missing device_id in request body");
+        res.set_content(R"({"error": "Missing device_id"})", "application/json");
+        return;
+    }
+    std::string device_id = body["device_id"];
 
     std::string path = body["path"];
     std::string key = userID + ":" + path;
@@ -590,7 +519,8 @@ void delete_path(const httplib::Request &req, httplib::Response &res)
             json notification_payload = {
                 {"type", "DIR-"},
                 {"user_id", userID},
-                {"path", path}};
+                {"path", path},
+                {"device_id", device_id}};
             MyLogger::debug("Broadcasting notification for delete Directory: " + path);
             Initiation::broadcaster->broadcast(notification_payload);
         }
@@ -748,7 +678,6 @@ int main(int argc, char *argv[])
     svr.Post("/create-directory", create_directory);
     svr.Post("/list-directory", list_directory);
     svr.Post("/create-file", create_file);
-    svr.Post("/update-file", update_file);
     svr.Post("/get-file-endpoints", get_file_endpoints);
     svr.Post("/block-server-confirmation", block_server_confirmation);
     svr.Post("/delete", delete_path);
