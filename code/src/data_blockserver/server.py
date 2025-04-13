@@ -90,6 +90,7 @@ def value_put():
         payload["value"] = json.loads(payload["value"])
         token = payload["token"]
         filePath = payload["key"]
+        deviceID = payload["device_id"]
 
         userID = verify_jwt(token)
         logging.debug(f"User ID from token: {userID}")
@@ -117,7 +118,7 @@ def value_put():
                 if result:
                     reply = {"code": "success", "payload": new_payload}
                     logging.info(f"File created successfully: {key}")
-                    notification_handler({"user_id": userID, "path": filePath})
+                    notification_handler({"user_id": userID, "path": filePath, "device_id": deviceID})
                 else:
                     reply = {"code": "fail", "message": "Creation failed"}
                     logging.warning(f"File creation failed: {key}")
@@ -148,7 +149,7 @@ def value_put():
                 if result:
                     reply = {"code": "success", "payload": new_payload}
                     logging.info(f"File updated successfully: {key}")
-                    notification_handler({"user_id": userID, "path": filePath})
+                    notification_handler({"user_id": userID, "path": filePath, "device_id": deviceID})
                 else:
                     reply = {"code": "fail", "message": "Update failed"}
                     logging.warning(f"File update failed: {key}")

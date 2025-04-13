@@ -34,8 +34,8 @@ namespace distributed_KV
     Response redirectToLeader(const std::string &initialUrl, const std::string &reqType, const nlohmann::json &message);
     Response tryServers(const std::vector<std::string> &servers, const std::string &reqType, const nlohmann::json &message);
     Response get(const std::vector<std::string> &servers, const std::string &key, const std::string &token);
-    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &value);
-    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token);
+    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &device_id, const std::string &value);
+    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token,const std::string &device_id);
 
     // A simple response structure for file-based operations.
     struct FileKVResponse
@@ -63,11 +63,13 @@ namespace distributed_KV
                            const std::string &filePath,
                            const std::string &file_content,
                            const std::string &version,
-                           const std::string &token);
+                           const std::string &token,
+                           const std::string &device_id);
     FileKVResponse getFile(const std::vector<std::string> &servers,
                            const std::string &filePath,
                            const std::string &token);
     FileKVResponse deleteFile(const std::vector<std::string> &servers,
                               const std::string &filePath,
-                              const std::string &token);
+                              const std::string &token,
+                              const std::string &device_id);
 }

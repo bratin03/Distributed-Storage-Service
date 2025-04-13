@@ -613,22 +613,24 @@ void block_server_confirmation(const httplib::Request &req, httplib::Response &r
     try
     {
         json body_json = json::parse(req.body);
-        if (!body_json.contains("path") || !body_json.contains("user_id"))
+        if (!body_json.contains("path") || !body_json.contains("user_id") || !body_json.contains("device_id"))
         {
             res.status = 400;
-            MyLogger::warning("Block server confirmation failed: Missing 'path' or 'user_id' in request body");
+            MyLogger::warning("Block server confirmation failed: Missing 'path' or 'user_id' or 'device_id' in request body");
             res.set_content(R"({"error": "Missing path or user_id"})", "application/json");
             return;
         }
 
         std::string file_path = body_json["path"];
         std::string userID = body_json["user_id"];
+        std::string device_id = body_json["device_id"];
         MyLogger::debug("Processing block server confirmation for file: " + file_path + " by user: " + userID);
 
         json notification_payload = {
             {"type", "FILE~"},
             {"user_id", userID},
-            {"path", file_path}};
+            {"path", file_path},
+            {"device_id", device_id}};
         Initiation::broadcaster->broadcast(notification_payload);
         MyLogger::info("Block server confirmation processed for file: " + file_path);
         res.status = 200;
