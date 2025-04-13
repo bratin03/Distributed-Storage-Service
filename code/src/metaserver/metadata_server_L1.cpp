@@ -306,8 +306,8 @@ void create_file(const httplib::Request &req, httplib::Response &res)
             // not doing this
 
             MyLogger::warning("File already exists: " + key);
-            res.status = 400;
-            res.set_content(R"({"error": "File already exists"})", "application/json");
+            res.status = 200;
+            res.set_content(R"({"success": "File already exists"})", "application/json");
             return;
         }
 
