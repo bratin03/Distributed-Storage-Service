@@ -2,7 +2,9 @@
 #include "notification_server.hpp"
 #include <chrono>
 #include <memory>
+#include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
 namespace notification
 {
 
@@ -57,7 +59,16 @@ namespace notification
                 subscriptions_.erase(it);
             }
         }
-        MyLogger::info("Broadcasting notification to user: " + user_id);
+        try 
+        {
+            auto json_obj = json::parse(message);
+            std::string formatted_message = json_obj.dump(4); // pretty print with 4-space indent
+            MyLogger::info("Broadcasting notification to user: " + user_id + " with JSON message:\n" + formatted_message);
+        } 
+        catch (json::parse_error& e) 
+        {
+            MyLogger::error("Failed to parse JSON message for user: " + user_id + ". Raw message: " + message);
+        }
         // Send the notification to all waiting sessions.
         for (auto &session : sessions)
         {
