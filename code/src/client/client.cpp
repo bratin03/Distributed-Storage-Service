@@ -12,6 +12,7 @@
 #include "serverUtils/serverUtils.hpp"
 #include "notification/notification.hpp"
 #include "watcher/watcher.hpp"
+#include "process_local/process_local.hpp"
 
 using json = nlohmann::json;
 
@@ -52,6 +53,8 @@ int main(int argc, char *argv[])
     // Initialize file system utilities.
     auto monitoring_path = ConfigReader::get_config_string("monitoring_path", user_info);
     serverUtils::device_id = ConfigReader::get_config_string("device_id", user_info);
+    process_local::wait_threshold = ConfigReader::get_config_value("wait_threshold", user_info);
+    process_local::wait_time = ConfigReader::get_config_value("wait_time", user_info);
 
     fsUtils::initialize(monitoring_path, login::username);
 
@@ -80,11 +83,15 @@ int main(int argc, char *argv[])
     std::mutex mtx;
     std::condition_variable cv;
 
+    std::thread process_thread([&]()
+                               { process_local::process_local_events(eventQueue, eventMap, mtx, cv); });
+
     // Create watcher thread
     std::thread watcher_thread([&]()
                                { watcher::watch_directory(monitoring_path, eventQueue, eventMap, mtx, cv); });
 
     watcher_thread.join();
+    process_thread.join();
 
     return 0;
 }

@@ -1,5 +1,7 @@
 {
   "monitoring_path": "/home/bratin/Shared/",
   "metadata_path": "/var/lib/DSS/metadata/",
-  "device_id": "BM-1"
+  "device_id": "BM-1",
+  "wait_time": 3000,
+  "wait_threshold": 5
 }

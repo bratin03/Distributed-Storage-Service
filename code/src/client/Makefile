@@ -2,7 +2,7 @@
 # ============================
 
 # Directories producing static libraries.
-LIB_SUBDIRS = cache fsUtils load_config login merge metadata serverUtils notification watcher kv
+LIB_SUBDIRS = cache fsUtils load_config login merge metadata serverUtils notification watcher kv process_local
 # Boot is special since boot/boot.cpp is compiled in the client build.
 BOOT_DIR = boot
 
@@ -15,8 +15,8 @@ CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS))
 # Linker flags: look for libraries built in the subdirectories.
 LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))
 # Libraries produced in subdirectories plus extra libraries.
-LIBS     = -lfsUtils -lload_config -llogin -lmetadata -lserverUtils -lcache -lrocksdb -lkv \
-		   -lcrypto -lz -lpthread -lnotification -lwatcher -lcurl -lmerge -lgit2
+LIBS     = -lprocess_local -lfsUtils -lload_config -llogin -lmetadata -lserverUtils -lcache -lrocksdb -lkv \
+	 -lcrypto -lz -lpthread -lnotification -lwatcher -lcurl -lmerge -lgit2
 
 # Default target.
 all: client.out
