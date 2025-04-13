@@ -72,7 +72,6 @@ def value_put():
 
     if n.status == LEADER:
         # Convert the JSON string to a dict
-        payload["value"] = json.loads(payload["value"])
         logging.debug("Processing PUT request as LEADER")
 
         # deletion of file
@@ -88,6 +87,7 @@ def value_put():
                 logging.warning(f"File deletion failed: {payload['key']}")
             return jsonify(reply)
 
+        payload["value"] = json.loads(payload["value"])
         token = payload["token"]
         filePath = payload["key"]
 
