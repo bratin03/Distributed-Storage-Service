@@ -11,7 +11,7 @@ CXX      = g++
 # Automatically construct include flags from directories. The dot (".") and boot directory
 # are explicitly added because boot does not have its own Makefile.
 INC_DIRS = . $(BOOT_DIR) $(LIB_SUBDIRS)
-CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS))
+CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS)) 
 # Linker flags: look for libraries built in the subdirectories.
 LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))
 # Libraries produced in subdirectories plus extra libraries.
