@@ -193,7 +193,7 @@ class Node():
                     payload = msg["payload"]
                     self.staged = payload
                 # proceeding staged transaction
-                elif self.commitIdx <= msg["commitIdx"]:
+                elif "commitIdx" in msg and self.commitIdx <= msg["commitIdx"]:
                     if not self.staged:
                         self.staged = msg["payload"]
                     self.commit()

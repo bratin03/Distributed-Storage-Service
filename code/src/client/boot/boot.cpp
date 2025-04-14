@@ -124,7 +124,7 @@ namespace boot
         {
             for (const auto &subdir : resp["subdirectories"])
             {
-                subdirectories.insert(subdir);
+                subdirectories.insert(subdir.get<std::string>());
                 MyLogger::info("Found subdirectory in remote: " + subdir.get<std::string>());
             }
         }
@@ -137,7 +137,7 @@ namespace boot
         {
             for (const auto &file : resp["files"])
             {
-                files.insert(file);
+                files.insert(file.get<std::string>());
                 MyLogger::info("Found file in remote: " + file.get<std::string>());
             }
         }
