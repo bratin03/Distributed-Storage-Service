@@ -101,6 +101,7 @@ namespace serverUtils
         else
         {
             MyLogger::error("Failed to upload file: " + response.err);
+            Conflict(file_key);
             return false;
         }
     }
