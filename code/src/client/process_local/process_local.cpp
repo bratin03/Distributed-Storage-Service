@@ -39,6 +39,8 @@ namespace process_local
                 eventMap.erase(event); // Remove the event from the set
                 db_mutex.lock();
                 process_event(event);
+                // Sleep for 100 ms to avoid overwhelming the database with requests
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 db_mutex.unlock();
             }
         }

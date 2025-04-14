@@ -2,7 +2,7 @@
   "public_key_file": "public.pem",
 
   "server_ip": "10.145.49.198",
-  "server_port": 40002,
+  "server_port": 40005,
 
   "notification_servers": [
     "http://10.145.49.198:30011",
