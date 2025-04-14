@@ -61,12 +61,34 @@ namespace fsUtils
 
     void createTextFile(const std::string &relativePath, const std::string &content)
     {
+        // Ensure we only work with .txt files.
         if (std::filesystem::path(relativePath).extension() != ".txt")
         {
             MyLogger::error("File creation aborted: Only .txt files are allowed (" + relativePath + ")");
             return;
         }
+
+        // Build the full file path.
         auto filePath = buildFullPath(relativePath);
+
+        // Ensure that the parent directory exists.
+        auto parentPath = filePath.parent_path();
+        if (!std::filesystem::exists(parentPath))
+        {
+            try
+            {
+                // This will create all missing directories in the path.
+                std::filesystem::create_directories(parentPath);
+                MyLogger::info("Created directories: " + parentPath.string());
+            }
+            catch (const std::filesystem::filesystem_error &e)
+            {
+                MyLogger::error("Error creating directories: " + std::string(e.what()));
+                return;
+            }
+        }
+
+        // Open and write the file.
         std::ofstream file(filePath, std::ios::binary);
         if (file.is_open())
         {
