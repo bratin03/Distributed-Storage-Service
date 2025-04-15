@@ -1,4 +1,4 @@
-rm rf /var/lib/DSS
+rm -rf /var/lib/DSS
 
 sudo mkdir -p /var/lib/DSS
 sudo chown -R $USER:$USER /var/lib/DSS
