@@ -1,0 +1,1 @@
+g++ main.cpp -O2 -o main.out -std=c++17
