@@ -9,6 +9,7 @@
 #include "../fsUtils/fsUtils.hpp"
 #include "../kv/kv.hpp"
 #include "../merge/merge.hpp"
+#include "../app_notify/app_notify.hpp"
 
 using json = nlohmann::json;
 

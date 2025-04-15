@@ -2,7 +2,7 @@
 # ============================
 
 # Directories producing static libraries.
-LIB_SUBDIRS = cache fsUtils load_config login merge metadata serverUtils notification watcher kv process_local process_remote
+LIB_SUBDIRS = cache fsUtils load_config login merge metadata serverUtils notification watcher kv process_local process_remote app_notify
 # Boot is special since boot/boot.cpp is compiled in the client build.
 BOOT_DIR = boot
 
@@ -11,12 +11,12 @@ CXX      = g++
 # Automatically construct include flags from directories. The dot (".") and boot directory
 # are explicitly added because boot does not have its own Makefile.
 INC_DIRS = . $(BOOT_DIR) $(LIB_SUBDIRS)
-CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS)) 
+CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS)) -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include $(shell pkg-config --cflags libnotify)
 # Linker flags: look for libraries built in the subdirectories.
-LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))
+LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))  
 # Libraries produced in subdirectories plus extra libraries.
-LIBS     = -lprocess_local -lprocess_remote -lfsUtils -lload_config -llogin -lmetadata -lserverUtils -lcache -lrocksdb -lkv \
-	 -lcrypto -lz -lpthread -lnotification -lwatcher -lcurl -lmerge -lgit2
+LIBS     = -lprocess_local -lprocess_remote -lfsUtils -lload_config -llogin -lmetadata -lserverUtils -lcache -lrocksdb -lkv -lapp_notify \
+	 -lcrypto -lz -lpthread -lnotification -lwatcher -lcurl -lmerge -lgit2 $(shell pkg-config --libs libnotify)
 
 # Default target.
 all: client.out

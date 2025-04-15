@@ -289,6 +289,14 @@ namespace serverUtils
                         MyLogger::info("Conflict file metadata updated in database for: " + conflict_filename);
                         createFile(conflict_filename);
                         uploadFile(conflict_filename);
+                        try
+                        {
+                            AppNotify::send_notification("DSS: Conflict Detected", "A conflict was detected for the file: " + file_key + ". A conflicted copy has been created at: " + conflict_filename);
+                        }
+                        catch (const std::exception &e)
+                        {
+                            MyLogger::error("Failed to send notification: " + std::string(e.what()));
+                        }
                     }
                 }
                 else
