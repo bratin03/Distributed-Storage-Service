@@ -1,1 +1,0 @@
-g++ -o dropbox_test.out dropbox_client.cpp test_4.cpp -lcurl -O2 -o test_4.out
