@@ -1,0 +1,27 @@
+\chapter{Conclusion}\label{chap:conclusion}
+
+In this report, we  examined three distinct distributed storage systems: \textbf{Tectonic}, \textbf{Dropbox}, and \textbf{Ceph}. Although they serve different audiences and have unique design goals, their architectures offer valuable insights into the trade-offs and challenges in building scalable, fault-tolerant storage systems.
+
+\section{Design Choices}
+\begin{itemize}
+    \item \textbf{Tectonic:} Developed for internal use at Meta, Tectonic emphasizes multi-tenancy and efficient resource sharing. Its layered metadata store, token-based access control, and client-side optimizations enable effective handling of large-scale, heterogeneous workloads.
+    \item \textbf{Dropbox:} Designed for consumer file synchronization, Dropbox employs a client-server architecture that leverages file watchers, delta encoding, and long-polling for real-time notifications. These choices ensure low-latency updates and robust version control across multiple devices.
+    \item \textbf{Ceph:} An open-source solution that unifies object, block, and file storage, Ceph is built for scalability and resilience. Its decentralized architecture, driven by the CRUSH algorithm for data placement along with replication and erasure coding, provides high availability and self-healing capabilities.
+\end{itemize}
+
+\section{Differences in Models}
+The three systems illustrate different approaches to addressing the fundamental challenges of distributed storage:
+\begin{itemize}
+    \item \textbf{Architectural Models:} Tectonic uses a layered, tenant-focused model while Dropbox relies on a centralized client-server approach optimized for real-time synchronization. In contrast, Ceph adopts a decentralized design that eliminates single points of failure.
+    \item \textbf{Consistency and Performance:} Dropbox opts for eventual consistency to facilitate rapid file synchronization, whereas Tectonic and Ceph are designed to balance strong consistency with performance, adapting their strategies based on workload and system scale.
+    \item \textbf{Resource Management:} Tectonic demonstrates sophisticated resource optimization through multi-tenancy and dynamic resource sharing, while Ceph shows how decentralization and intelligent data placement can maintain performance under heavy load.
+\end{itemize}
+
+\section{Lessons Learned}
+From a distributed systems perspective, the analysis of these systems offers several key takeaways:
+\begin{itemize}
+    \item \textbf{Trade-offs in Consistency:} The choice between strong and eventual consistency impacts system design, performance, and user experience.
+    \item \textbf{Scalability and Fault Tolerance:} Decentralized approaches, as seen in Ceph, highlight the benefits of eliminating bottlenecks and ensuring data remains accessible even under failures.
+    \item \textbf{Application-Specific Optimization:} Tectonic and Dropbox illustrate that system design can be tailored to meet specific use cases—whether it is internal resource management or consumer-oriented file synchronization.
+\end{itemize}
+Overall, these systems reflect the diverse strategies available for tackling the inherent challenges of distributed storage. Their design choices provide a rich basis for understanding how to optimize for scalability, performance, and reliability in distributed environments.

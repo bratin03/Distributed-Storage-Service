@@ -1,0 +1,80 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{ragged2e} % Ensure full justification
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{listings}
+\lstset{
+    breaklines=true,
+    basicstyle=\ttfamily,
+    frame=single
+}
+\usepackage{color}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{tikz}
+\usepackage{tikz-qtree}
+\usepackage{tikz-dependency}
+\usepackage{hyperref}
+\usepackage{calc}
+\usepackage[noabbrev]{cleveref}
+\geometry{margin=0.97in}
+
+\newcommand{\bmr}[1]{\textcolor{red}{#1}}
+
+\sloppy
+\begin{document}
+\justifying
+
+\begin{titlepage}
+    \centering
+    % University Name
+    {\Large \textbf{Indian Institute of Technology Kharagpur}\par}
+    \vspace{0.5cm}
+    % Course information
+    {\Large Course Number: \textbf{CS60002}\par}
+    {\Large Course Name: \textbf{Distributed Systems}\par}
+    {\Large Term Project\par}
+    \vspace{1cm} % Vertical space
+  
+    % University logo in the middle
+    \includegraphics[width=0.6\textwidth]{img/iit_kgp_logo.png}\par
+    \vspace{1cm}
+  
+    % Student names on separate lines
+    {\Large Bratin Mondal - 21CS10016\par}
+    {\Large Soukhin Nayek - 21CS10062\par}
+    {\Large Swarnabh Mandal - 21CS10068\par}
+    \vspace{1cm}
+  
+    % Title of the Project
+    {\Huge\bfseries Distributed Storage Service\par}
+    
+    \vfill
+    {\Large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+\include{chapters/intro}
+\include{chapters/features} % Understand what the topic is about and its usual features.
+\include{chapters/designIssues} % Understand basic design issues in the topic area.
+\include{chapters/components} % Understand basic architectures for implementing such systems. high level
+\include{chapters/tectonic} % Study practical implementation 1.
+\include{chapters/dropbox} % Study practical implementation 2.
+\include{chapters/ceph} % Study practical implementation 3.
+\include{chapters/conclusion}
+
+\bibliographystyle{plainurl}
+\bibliography{references}
+
+\end{document}

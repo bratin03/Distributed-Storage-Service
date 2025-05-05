@@ -1,0 +1,255 @@
+@misc{amazon_s3,
+  author  = {{Amazon Web Services}},
+  title   = {Amazon S3},
+  url     = {https://aws.amazon.com/s3},
+  urldate = {2025-03-25}
+}
+
+@misc{google_cloud_storage,
+  author  = {{Google}},
+  title   = {Google Cloud Storage},
+  url     = {https://cloud.google.com/storage},
+  urldate = {2025-03-25}
+}
+
+@misc{azure,
+  author  = {Microsoft Corporation},
+  title   = {Microsoft Azure},
+  year    = {2025},
+  url     = {https://azure.microsoft.com/en-in},
+  urldate = {2025-03-25}
+}
+
+@inproceedings{ceph,
+  author    = {Weil, Sage A. and Brandt, Scott A. and Miller, Ethan L. and Long, Darrell D. E. and Maltzahn, Carlos},
+  title     = {Ceph: A Scalable, High-Performance Distributed File System},
+  booktitle = {Proceedings of the 7th Symposium on Operating Systems Design and Implementation},
+  series    = {OSDI '06},
+  year      = {2006},
+  pages     = {307--320},
+  numpages  = {14},
+  publisher = {USENIX Association},
+  address   = {Seattle, Washington, USA},
+  isbn      = {1931971471},
+  abstract  = {We have developed Ceph, a distributed file system that provides excellent performance, reliability, and scalability. Ceph maximizes the separation between data and metadata management by replacing allocation tables with a pseudo-random data distribution function (CRUSH) designed for heterogeneous and dynamic clusters of unreliable object storage devices (OSDs). We leverage device intelligence by distributing data replication, failure detection and recovery to semi-autonomous OSDs running a specialized local object file system. A dynamic distributed metadata cluster provides extremely efficient metadata management and seamlessly adapts to a wide range of general purpose and scientific computing file system workloads. Performance measurements under a variety of workloads show that Ceph has excellent I/O performance and scalable metadata management, supporting more than 250,000 metadata operations per second.}
+}
+
+@misc{glusterfs,
+  author  = {Gluster},
+  title   = {GlusterFS},
+  url     = {https://www.gluster.org},
+  urldate = {2025-03-25}
+}
+
+@misc{dropbox,
+  author  = {{Dropbox Inc.}},
+  title   = {Dropbox},
+  url     = {https://www.dropbox.com},
+  urldate = {2025-03-25}
+}
+
+@misc{google_drive,
+  author  = {{Google}},
+  title   = {Google Drive},
+  url     = {https://www.google.com/drive/},
+  urldate = {2025-03-25}
+}
+
+@misc{onedrive,
+  author  = {{Microsoft}},
+  title   = {OneDrive},
+  url     = {https://onedrive.live.com},
+  urldate = {2025-03-25}
+}
+
+@inproceedings{tectonic,
+  author    = {Satadru Pan and Theano Stavrinos and Yunqiao Zhang and Atul Sikaria and Pavel Zakharov and Abhinav Sharma and Shiva Shankar and Mike Shuey and Richard Wareing and Monika Gangapuram and Guanglei Cao and Christian Preseau and Pratap Singh and Kestutis Patiejunas and JR Tipton and Ethan Katz-Bassett and Wyatt Lloyd},
+  title     = {Facebook's Tectonic Filesystem: Efficiency from Exascale},
+  booktitle = {USENIX Conference on File and Storage Technologies},
+  year      = {2021},
+  url       = {https://api.semanticscholar.org/CorpusID:232225564},
+  urldate   = {2025-03-25}
+}
+
+@misc{colossus,
+  author  = {{Google}},
+  title   = {Colossus},
+  url     = {https://cloud.google.com/blog/products/storage-data-transfer/a-peek-behind-colossus-googles-file-system},
+  urldate = {2025-03-25},
+  note    = {Internal distributed storage system}
+}
+
+@inproceedings{haystack,
+  author    = {Beaver, Doug and Kumar, Sanjeev and Li, Harry C. and Sobel, Jason and Vajgel, Peter},
+  title     = {Finding a Needle in Haystack: Facebook's Photo Storage},
+  booktitle = {Proceedings of the 9th USENIX Conference on Operating Systems Design and Implementation},
+  year      = {2010},
+  pages     = {47--60},
+  numpages  = {14},
+  publisher = {USENIX Association},
+  address   = {Vancouver, BC, Canada},
+  abstract  = {This paper describes Haystack, an object storage system optimized for Facebook's Photos application. Facebook currently stores over 260 billion images, which translates to over 20 petabytes of data. Users upload one billion new photos (∼60 terabytes) each week and Facebook serves over one million images per second at peak. Haystack provides a less expensive and higher performing solution than our previous approach, which leveraged network attached storage appliances over NFS. Our key observation is that this traditional design incurs an excessive number of disk operations because of metadata lookups. We carefully reduce this per photo metadata so that Haystack storage machines can perform all metadata lookups in main memory. This choice conserves disk operations for reading actual data and thus increases overall throughput.}
+}
+
+@inproceedings{f4,
+  author    = {Muralidhar Subramanian and Wyatt Lloyd and Sabyasachi Roy and Cory Hill and Ernest Lin and Weiwen Liu and Satadru Pan and Shiva Shankar and Sivakumar Viswanathan and Linpeng Tang and Sanjeev Kumar},
+  title     = {f4: Facebook's Warm BLOB Storage System},
+  booktitle = {USENIX Symposium on Operating Systems Design and Implementation},
+  year      = {2014},
+  url       = {https://api.semanticscholar.org/CorpusID:12035011},
+  urldate   = {2025-03-25}
+}
+
+@inproceedings{hdfs,
+  author    = {Shvachko, Konstantin and Kuang, Hairong and Radia, Sanjay and Chansler, Robert},
+  title     = {The Hadoop Distributed File System},
+  booktitle = {2010 IEEE 26th Symposium on Mass Storage Systems and Technologies (MSST)},
+  year      = {2010},
+  pages     = {1--10},
+  doi       = {10.1109/MSST.2010.5496972},
+  url       = {https://doi.org/10.1109/MSST.2010.5496972},
+  urldate   = {2025-03-25},
+  keywords  = {File systems, Bandwidth, Concurrent computing, Distributed computing, Computer architecture, File servers, Facebook, Protocols, Protection, Clustering algorithms, Hadoop, HDFS, distributed file system}
+}
+
+@article{ReedSolomon,
+  author  = {Reed, I. S. and Solomon, G.},
+  title   = {Polynomial Codes Over Certain Finite Fields},
+  journal = {Journal of the Society for Industrial and Applied Mathematics},
+  volume  = {8},
+  number  = {2},
+  pages   = {300--304},
+  year    = {1960},
+  doi     = {10.1137/0108018},
+  url     = {https://doi.org/10.1137/0108018},
+  urldate = {2025-03-25}
+}
+
+@misc{zippydb,
+  author  = {M. Annamalai},
+  title   = {ZippyDB: A Distributed Key-Value Store},
+  year    = {2015},
+  url     = {https://engineering.fb.com/2021/08/06/core-infra/zippydb/},
+  urldate = {2025-03-25}
+}
+
+@misc{rocksdb,
+  author  = {Facebook Open Source},
+  title   = {RocksDB},
+  year    = {2020},
+  url     = {https://rocksdb.org/},
+  urldate = {2025-03-25}
+}
+
+@article{paxos,
+  author  = {Lamport, Leslie},
+  title   = {The Part-Time Parliament},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {16},
+  number  = {2},
+  pages   = {133--169},
+  year    = {1998},
+  doi     = {10.1145/279227.279229},
+  url     = {https://doi.org/10.1145/279227.279229},
+  urldate = {2025-03-25}
+}
+
+@inproceedings{copyset,
+  author    = {Cidon, Asaf and Rumble, Stephen and Stutsman, Ryan and Katti, Sachin and Ousterhout, John and Rosenblum, Mendel},
+  title     = {Copysets: Reducing the Frequency of Data Loss in Cloud Storage},
+  booktitle = {2013 USENIX Annual Technical Conference (USENIX ATC 13)},
+  year      = {2013},
+  pages     = {37--48},
+  publisher = {USENIX Association},
+  address   = {San Jose, CA},
+  isbn      = {978-1-931971-01-0},
+  month     = {Jun},
+  url       = {https://www.usenix.org/conference/atc13/technical-sessions/presentation/cidon},
+  urldate   = {2025-03-25}
+}
+
+@online{cloudification2024,
+  author  = {Cloudification},
+  title   = {Ceph: A Distributed Storage System with Two Decades of Innovation},
+  year    = {2024},
+  url     = {https://cloudification.io/cloud-blog/ceph-a-distributed-storage-system-with-two-decades-of-innovation/},
+  urldate = {2025-03-06}
+}
+
+@online{Dropbox_solution1,
+  author  = {Pranav},
+  title   = {Dropbox System Design},
+  year    = {2020},
+  url     = {https://systemdesignprimer.com/dropbox-system-design/},
+  urldate = {2025-03-25}
+}
+
+@online{Dropbox_solution2,
+  author  = {System Design School},
+  title   = {Dropbox System Design Solution},
+  url     = {https://systemdesignschool.io/problems/dropbox/solution},
+  urldate = {2025-03-25}
+}
+
+@online{Dropboxofficial,
+  author  = {Dropbox},
+  title   = {Dropbox Under the Hood},
+  url     = {https://www.dropbox.com/business/trust/security/architecture},
+  urldate = {2025-03-25}
+}
+
+@misc{wikipedia_ceph,
+  author  = {{Wikipedia contributors}},
+  title   = {Ceph (software) --- Wikipedia},
+  year    = {2025},
+  url     = {https://en.wikipedia.org/wiki/Ceph_%28software%29},
+  urldate = {2025-03-06}
+}
+
+@online{ceph_intro_video,
+  author  = {Ceph},
+  title   = {2019-JUN-27 :: Ceph Tech Talk - Intro to Ceph},
+  year    = {2019},
+  url     = {https://www.youtube.com/watch?v=PmLPbrf-x9g},
+  urldate = {2025-03-16}
+}
+
+@manual{ceph_architecture,
+  author  = {{Ceph Contributors}},
+  title   = {Architecture --- Ceph Documentation},
+  year    = {2025},
+  url     = {https://docs.ceph.com/en/latest/architecture/},
+  urldate = {2025-03-15}
+}
+
+@misc{akamai,
+  author  = {Akamai Technologies},
+  title   = {Akamai},
+  url     = {https://www.akamai.com},
+  urldate = {2025-03-25}
+}
+
+@misc{cloudflare,
+  author  = {Cloudflare},
+  title   = {Cloudflare},
+  url     = {https://www.cloudflare.com},
+  urldate = {2025-03-25}
+}
+
+@article{BusinessInsider2018,
+  title = {How Drew Houston created Dropbox},
+  author = {{Business Insider}},
+  journal = {Business Insider},
+  year = {2018},
+  note = {Accessed: 2025-03-27},
+  url = {https://www.businessinsider.com/how-drew-houston-created-dropbox-2018-1}
+}
+
+@article{Awfis2021,
+  title = {How Dropbox grew from a 2-person startup to a billion-dollar enterprise},
+  author = {{Awfis}},
+  journal = {Awfis},
+  year = {2021},
+  note = {Accessed: 2025-03-27},
+  url = {https://www.awfis.com/inspiration/how-dropbox-grew-from-a-2-person-startup-to-a-billion-dollar-enterprise}
+}

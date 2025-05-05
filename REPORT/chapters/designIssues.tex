@@ -1,0 +1,62 @@
+\chapter{Design Issues}\label{chap:design}
+
+Building a large scale distributed storage service with providing certain features is a challenging task. The exact design of the system will depend on the requirements and constraints of the system. In this section, we will discuss some of the design issues that need to be considered when building a large scale distributed storage service for a large number of users and aimed to support a large number of files. We also discuss some of the design principles that can be used to address these issues.
+
+\section{Working with Large Files}
+Large files are a common use case for distributed storage systems. They can be difficult to work with due to the storage and bandwidth requirements, as well as the need for efficient transfer and retrieval. On updates, transferring the entire file can be inefficient and time-consuming.
+
+\paragraph{Chunking:} The file is divided into smaller, fixed-size blocks. When an update occurs, only the chunks that have changed are re-transferred rather than the whole file.
+
+\paragraph{Delta Encoding:} Delta encoding is a technique that stores only the differences between two versions of a file. This can be useful for large files that change frequently, as it reduces the amount of data that needs to be transferred.
+
+\paragraph{Transfer Methods:} There are several methods for uploading large files to a distributed storage system. Parallel uploads can be used to upload multiple chunks of a file simultaneously. Resumable uploads allow users to pause and resume uploads, which can be useful for large files to continue uploading from where they left off in case of failure. 
+
+\paragraph{Compression:} Compression can be used to reduce the size of large files before they are transferred to reduce bandwidth usage. Furthermore, compression can be used to reduce the size of files stored in the distributed storage system, which can help to reduce storage costs.
+
+
+\section{Low latency Access over Global Network}
+Clients can be located in different geographical locations, and the distributed storage system must be able to provide low-latency access to files regardless of the client's location.
+
+\paragraph{Geo Replication:} Geo-replication is a technique that involves replicating data across multiple geographical locations. This can help to reduce latency by ensuring that data is stored closer to the client.
+
+\paragraph{Content Delivery Networks (CDNs):} CDNs are a network of servers that are distributed across multiple geographical locations. They can be used to cache frequently accessed files, which can help to reduce latency for clients located far away from the original data source.
+
+\paragraph{Dynamic Data Placement and Prefetching:} Dynamic data placement involves placing data in the location that is closest to the client. This can help to reduce latency by ensuring that data is stored closer to the client. Prefetching involves preloading data that is likely to be accessed in the near future, which can help to reduce latency for clients.
+
+\section{Synchronization}
+Synchronization is the process of ensuring that multiple copies of a file are kept up to date. This can be a challenging task, especially when multiple users are accessing the same file simultaneously. Different systems provide different consistency models, which can affect the performance and reliability of the system. Amazon S3 earlier provided eventual consistency on modifications to objects, but now provides strong consistency for all objects. 
+
+\paragraph{Polling:} Adaptive polling can be used if immediate updates are not required. The client can periodically check for updates to the file, which can help to reduce the load on the server. Long polling or opening a persistent connection using webSocket required extra socket manager and resource for instant reflection of changes and any changes in the file in the server will be reflected in the client within a short duration.
+
+\paragraph{Conflict Resolution:} When multiple users are accessing the same file simultaneously, conflicts can occur. Conflict resolution is the process of resolving these conflicts to ensure that all users have access to the most up-to-date version of the file. This can be done using techniques such as last-write-wins or versioning.
+
+\paragraph{Version Control:} Implementing version control can help manage changes to files and resolve conflicts by keeping track of different versions of a file. This allows users to revert to previous versions if necessary and provides a clear history of changes made to the file.
+
+\section{Fault Tolerance and Data Recovery}
+Storage nodes, request serving nodes, and metadata nodes can fail at any time. The distributed storage system must be able to recover from these failures without losing data or causing downtime.
+
+\paragraph{Data Redundancy:} Data redundancy is the process of storing multiple copies of data in different locations. This can help to ensure that data is not lost in the event of a failure. Data redundancy can be achieved using techniques such as replication or erasure coding.
+
+\paragraph{Load Balancing:} Load balancing is the process of distributing requests across multiple nodes to ensure that no single node is overloaded. This can help to improve performance and reduce the risk of failure.
+
+\paragraph{Persistent Storage:} Persistent storage is a type of storage that retains data even in the event of a failure. This can help to ensure that data is not lost in the event of a failure. Persistent storage can be achieved using techniques such as snapshots or backups.
+
+\paragraph{Monitoring and Alerting:} Monitoring and alerting are important for detecting and responding to failures in a distributed storage system. This can be done using techniques such as logging, metrics, and alerts. Monitoring can help to identify potential issues before they become critical, while alerting can help to notify administrators of failures that require immediate attention.
+
+\section{Metadata Management}
+Metadata management is the process of managing the metadata associated with files in a distributed storage system. Metadata can include information such as file names, sizes, and locations. In a large scale distributed storage system, managing the large amount of metadata can be a challenge. More importantly, the metadata must be kept up to date and consistent and must be accessed quickly and efficiently.
+
+\paragraph{Hierarchical Metadata:} Hierarchical metadata is a technique that involves organizing metadata into a hierarchy. This can help to improve performance by allowing the system to quickly locate the metadata associated with a file while being able to support a large number of files.
+
+\paragraph{Caching:} Caching is a technique that involves storing frequently accessed metadata in memory. This can help to improve performance by reducing the number of requests that need to be made to the metadata store.
+
+
+\section{Efficienct Operations}
+Depending on the use case, the distributed storage system must be able to perform certain operations efficiently potentially at the cost of other operations being time consuming. For example, a system that is optimized for read operations may be less efficient for write operations. The system must be able to balance the trade-offs between different operations to ensure that it meets the needs of its users.
+
+\paragraph{Batch Processing:} Batch processing is a technique that involves processing multiple requests at once. This can help to improve performance by reducing the number of requests that need to be made to the system. Batch processing can be used for both read and write operations.
+
+\paragraph{Asynchronous Processing:} Asynchronous processing is a technique that involves processing requests in the background. This can help to improve performance by allowing the system to continue processing other requests while waiting for a response. Asynchronous processing can be used for both read and write operations.
+
+\paragraph{Quorum Reads/Writes:} Quorum reads/writes are a technique that involves requiring a certain number of nodes to respond to a request before it is considered successful. This can help to improve performance by reducing the number of requests that need to be made to the system and helps in improving the 99
+th percentile latency.

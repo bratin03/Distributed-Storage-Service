@@ -1,0 +1,51 @@
+\chapter{Features of Distributed Storage Systems and Use Cases} \label{chap:features}
+
+Distributed storage systems distribute data across multiple nodes while providing an extensive suite of operations for interacting with persistent data. These operations encompass file retrieval, ingestion, creation, deletion, modification, and user access control. Additionally, these systems offer advanced mechanisms to ensure node synchronization, data durability, and robust support for concurrent collaboration and recovery. The following sections detail the fundamental operations, advanced functionalities, and supplementary services of distributed storage systems, followed by a discussion on various practical use cases.
+
+\section{Basic Operations}
+Distributed storage systems usually support these main file operations:
+\begin{itemize}
+    \item \textbf{Retrieval:} Accessing files or objects stored in the system.
+    \item \textbf{Uploading:} Adding new files or objects to the system.
+    \item \textbf{Creating and Deleting:} Making new files or folders and safely removing old ones.
+    \item \textbf{Updating:} Changing or replacing existing files, data, or metadata.
+    \item \textbf{Searching:} Finding files in the system or listing all files in a directory.
+    \item \textbf{Access Control:} Managing who can see or change files, often using permissions or roles based on login credentials.
+\end{itemize}
+
+\section{Advanced Operations}
+Modern distributed storage systems further extend their capabilities with advanced functionalities:
+\begin{itemize}
+    \item \textbf{Snapshots and Version Control:} Enabling point-in-time snapshots and historical versioning, which allows users to revert to previous states of files or directories. This is particularly useful for data recovery and auditing purposes.
+    \item \textbf{Real-time Data Synchronization:} Propagating updates immediately across all nodes to maintain consistency and support collaborative workflows. Typically, server-side mechanisms broadcast changes to all connected clients, which then update their local caches without user intervention.
+    \item \textbf{Conflict Detection and Resolution:} Automatically detecting concurrent modifications and either resolving conflicts or alerting users for manual resolution based on predefined policies. This is crucial for maintaining data integrity in collaborative environments.
+    \item \textbf{Secure Data Sharing:} Allowing users to share files and directories with configurable permissions, ensuring secure and controlled access.
+\end{itemize}
+
+\section{Services}
+Beyond core file operations, distributed storage systems incorporate additional services to enhance system robustness and operational efficiency:
+\begin{itemize}
+    \item \textbf{Data Synchronization:} Maintaining consistency across distributed nodes, which is critical for systems that support concurrent operations. Depending on the consistency model, some systems offer strong consistency guarantees while others rely on eventual consistency, necessitating client-side reconciliation.
+    \item \textbf{Data Durability and Fault Tolerance:} Utilizing replication, erasure coding, and redundancy protocols to safeguard against data loss due to hardware failures. Some systems seamlessly redirect operations to redundant copies upon a node failure, whereas others operate in a degraded mode until recovery.
+    \item \textbf{Scalability:} Supporting the dynamic addition of storage nodes to accommodate increasing data volumes and user demands, all while satisfying stringent latency and throughput requirements.
+    \item \textbf{Data Partitioning and Sharding:} Distributing data across multiple nodes to optimize performance and efficiently manage large-scale, high transaction rate workloads.
+    \item \textbf{Security Protocols:} Implementing robust encryption for data both in transit and at rest, alongside comprehensive authentication and authorization mechanisms to protect sensitive information in a distributed environment.
+\end{itemize}
+
+\section{Use Cases}
+Distributed storage systems are employed across various domains, each with unique requirements and challenges. The following sections highlight some of the most common use cases:
+
+\subsection{Cloud Storage Platforms}
+Cloud storage services such as Amazon S3\cite{amazon_s3}, Google Cloud Storage\cite{google_cloud_storage}, and Microsoft Azure\cite{azure} Blob Storage leverage distributed storage architectures to deliver robust data retrieval and storage capabilities, along with high durability and global synchronization.
+
+\subsection{Big Data Analytics}
+Distributed file systems like the Hadoop Distributed File System (HDFS)\cite{hdfs} and Ceph\cite{ceph} facilitate efficient management and processing of massive datasets. They support high-throughput data operations while ensuring data integrity and fault tolerance.
+
+\subsection{Content Delivery Networks (CDNs)}
+CDNs like Akamai\cite{akamai} and Cloudflare\cite{cloudflare} utilize distributed storage systems to cache and deliver content closer to end-users, significantly reducing latency and improving access speeds. These systems are designed to handle high traffic loads while maintaining data consistency across multiple nodes.
+
+\subsection{Enterprise Collaboration and Backup}
+Many enterprise solutions like Dropbox\cite{dropbox} and Google Drive\cite{google_drive} employ distributed storage systems to provide seamless file sharing and collaboration features. These systems ensure that users can access the latest versions of files from any device, regardless of location. They also implement robust backup solutions to protect against data loss.
+
+\subsection{Internal Enterprise Storage Systems}
+Proprietary systems, such as Meta's Tectonic\cite{tectonic} and Google's Colossus\cite{colossus}, exemplify internal distributed storage architectures designed to meet the high performance, scalability, and reliability demands of large-scale applications.

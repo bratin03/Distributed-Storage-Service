@@ -1,8 +1,6 @@
 # Python packages used in this project, they are all standard python packages.
-sys
 logging
 flask
-time
-threading
-random
 requests
+PyJWT
+PyJWT[crypto]
