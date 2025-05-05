@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 
+#–– Check for superuser privileges ––
+if [[ "$EUID" -ne 0 ]]; then
+  echo "[ERROR] This script must be run as root. Please run 'sudo su' first or use 'sudo' to run this script."
+  exit 1
+fi
+
 #–– Logging helper ––
 log() {
-  echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"
+  local GREEN="\033[1;32m"
+  local YELLOW="\033[1;33m"
+  local RESET="\033[0m"
+  local TS="[$(date +'%Y-%m-%d %H:%M:%S')]"
+  echo -e "${GREEN}${TS}${RESET} ${YELLOW}$*${RESET}"
 }
 
 #–– Base directory for all services ––
@@ -77,7 +87,8 @@ log "Starting core services setup"
 #–– 1) Core services setup in main shell ––
 log "Setting up password_db"
 pushd "$BASE_DIR/password_db" >/dev/null
-  ./create.sh && ./start.sh
+  ./create.sh 
+  ./start.sh
 popd >/dev/null
 
 log "Setting up authentication_server"
@@ -89,7 +100,7 @@ popd >/dev/null
 
 log "Setting up signupserver"
 pushd "$BASE_DIR/signupserver" >/dev/null
-  ./compile.sh
+  make
   ./stop_nginx.sh && sleep 1
   ./start_nginx.sh
 popd >/dev/null
@@ -107,13 +118,6 @@ pushd "$BASE_DIR/metaserver" >/dev/null
   ./stop_nginx.sh && sleep 1
   ./start_nginx.sh
 popd >/dev/null
-
-#–– Additional direct launches (if needed) ––
-log "Launching standalone password_db"
-cd CODE/src/password_db
-./create.sh
-./start.sh
-cd - >/dev/null
 
 #–– 2) data_blockserver venv + launch ––
 ensure_venv "$BASE_DIR/data_blockserver"

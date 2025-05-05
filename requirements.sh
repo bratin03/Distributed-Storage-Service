@@ -1,7 +1,4 @@
 #!/bin/bash
-
-set -e  # Exit on error
-
 echo "=== System Update ==="
 sudo apt update -y && sudo apt upgrade -y
 
@@ -21,11 +18,8 @@ sudo apt install -y \
     libglib2.0-dev \
     pkg-config \
     libgdk-pixbuf2.0-dev \
-    shared-mime-info
-
-echo "=== Installing Python Packages ==="
-pip3 install --upgrade pip
-pip3 install flask requests
+    shared-mime-info \
+    xterm
 
 echo "=== Configuring Environment Variables ==="
 PKG_CONFIG_LINE='export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH'
