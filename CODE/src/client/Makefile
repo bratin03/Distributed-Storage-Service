@@ -11,7 +11,7 @@ CXX      = g++
 # Automatically construct include flags from directories. The dot (".") and boot directory
 # are explicitly added because boot does not have its own Makefile.
 INC_DIRS = . $(BOOT_DIR) $(LIB_SUBDIRS)
-CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS)) -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include $(shell pkg-config --cflags libnotify)
+CXXFLAGS = -Wall -O2 -g -pg $(addprefix -I, $(INC_DIRS)) -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include $(shell pkg-config --cflags libnotify) -std=c++17
 # Linker flags: look for libraries built in the subdirectories.
 LDFLAGS  = $(addprefix -L, $(LIB_SUBDIRS))  
 # Libraries produced in subdirectories plus extra libraries.

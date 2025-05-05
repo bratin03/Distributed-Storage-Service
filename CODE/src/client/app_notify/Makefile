@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include $(shell pkg-config --cflags libnotify)
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include $(shell pkg-config --cflags libnotify)
 LDLIBS = $(shell pkg-config --libs libnotify)
 
 TARGET = notification_app.out

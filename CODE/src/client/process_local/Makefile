@@ -1,7 +1,7 @@
 # Makefile for static library libprocess_local.a
 
 CXX := g++
-CXXFLAGS := -O2 -g -pg -Wall -I.
+CXXFLAGS := -O2 -g -pg -Wall -I. -std=c++17
 
 SRC := process_local.cpp
 OBJ := $(SRC:.cpp=.o)

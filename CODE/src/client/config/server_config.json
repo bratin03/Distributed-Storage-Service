@@ -1,10 +1,10 @@
 {
-  "signup_ip": "10.145.49.198",
+  "signup_ip": "127.0.0.1",
   "signup_port": 10010,
-  "login_ip": "10.145.49.198",
+  "login_ip": "127.0.0.1",
   "login_port": 10020,
-  "metaserver_ip": "10.145.49.198",
+  "metaserver_ip": "127.0.0.1",
   "metaserver_port": 40000,
-  "notification_ip": "10.145.49.198",
+  "notification_ip": "127.0.0.1",
   "notification_port": 30000
 }

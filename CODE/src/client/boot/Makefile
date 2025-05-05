@@ -1,7 +1,7 @@
 # boot/Makefile
 
 CXX = g++
-CXXFLAGS = -Wall -O2  -g -pg -I..
+CXXFLAGS = -Wall -O2 -std=c++17 -g -pg -I..
 
 # Source and object files
 SRC = boot.cpp

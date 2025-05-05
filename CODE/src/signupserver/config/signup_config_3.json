@@ -1,10 +1,10 @@
 {
   "http_server": {
-    "ip": "10.145.49.198",
+    "ip": "127.0.0.1",
     "port": 10013
   },
   "redis": {
-    "ip": "10.145.49.198",
+    "ip": "127.0.0.1",
     "port": 10000
   },
   "blockserver_config_file": "block_server_config.json"

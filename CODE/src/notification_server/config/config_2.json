@@ -1,5 +1,5 @@
 {
-  "server_ip": "10.145.49.198",
+  "server_ip": "127.0.0.1",
   "server_port": 30002,
   "http_port": 30012,
   "timeout_seconds": 10,
