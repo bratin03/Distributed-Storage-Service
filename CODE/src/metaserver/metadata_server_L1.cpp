@@ -1,12 +1,13 @@
 /*
-g++ -std=c++17 -I../../utils/libraries/jwt-cpp/include metadata_service_L1.cpp -o metadata_service -lssl -lcrypto
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
 
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
 
-work ->
-    notification server integration
-    block server versioning
-
-
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
 */
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -667,7 +668,7 @@ int main(int argc, char *argv[])
 
     httplib::Server svr;
     global_server = &svr;
-    svr.set_logger([](const auto &req, const auto &res)
+    svr.set_logger([](const auto &req, [[maybe_unused]] const auto &res)
                    { std::cout << "Request: " << req.method << " " << req.path << std::endl; });
     MyLogger::info("Initializing server using configuration file: config/server_config.json");
     if (argc < 2)

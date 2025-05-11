@@ -1,3 +1,15 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #include "serverUtils.hpp"
 
 namespace serverUtils
@@ -80,7 +92,7 @@ namespace serverUtils
                 return false;
             }
         }
-        auto response = distributed_KV::setFile(endpoints, file_key, content, version, login::token,serverUtils::device_id);
+        auto response = distributed_KV::setFile(endpoints, file_key, content, version, login::token, serverUtils::device_id);
         if (response.success)
         {
             MyLogger::info("File uploaded successfully to: " + file_key);

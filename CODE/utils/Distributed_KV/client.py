@@ -1,3 +1,15 @@
+"""
+CS60002 - Distributed Systems
+Term Project - Spring 2025
+
+* Author 1: Bratin Mondal (21CS10016)
+* Author 2: Soukhin Nayek (21CS10062)
+* Author 3: Swarnabh Mandal (21CS10068)
+
+* Department of Computer Science and Engineering
+* Indian Institute of Technology, Kharagpur
+"""
+
 import sys, requests
 
 
@@ -8,16 +20,12 @@ def redirectToLeader(server_address, message):
         # switching between "get" and "put"
         if type == "get":
             try:
-                response = requests.get(server_address,
-                                        json=message,
-                                        timeout=1)
+                response = requests.get(server_address, json=message, timeout=1)
             except Exception as e:
                 return e
         else:
             try:
-                response = requests.put(server_address,
-                                        json=message,
-                                        timeout=1)
+                response = requests.put(server_address, json=message, timeout=1)
             except Exception as e:
                 return e
 
@@ -40,7 +48,7 @@ def redirectToLeader(server_address, message):
 # client put request
 def put(addr, key, value):
     server_address = addr + "/request"
-    payload = {'key': key, 'value': value}
+    payload = {"key": key, "value": value}
     message = {"type": "put", "payload": payload}
     # redirecting till we find the leader, in case of request during election
     print(redirectToLeader(server_address, message))
@@ -49,7 +57,7 @@ def put(addr, key, value):
 # client get request
 def get(addr, key):
     server_address = addr + "/request"
-    payload = {'key': key}
+    payload = {"key": key}
     message = {"type": "get", "payload": payload}
     # redirecting till we find the leader, in case of request during election
     print(redirectToLeader(server_address, message))

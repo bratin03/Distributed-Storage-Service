@@ -1,3 +1,15 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #include "merge.hpp"
 #include <git2.h>
 #include <cstring>
@@ -16,31 +28,25 @@ namespace merge
 
         // Prepare inputs
         git_merge_file_input ancestor = GIT_MERGE_FILE_INPUT_INIT;
-        git_merge_file_input ours     = GIT_MERGE_FILE_INPUT_INIT;
-        git_merge_file_input theirs   = GIT_MERGE_FILE_INPUT_INIT;
+        git_merge_file_input ours = GIT_MERGE_FILE_INPUT_INIT;
+        git_merge_file_input theirs = GIT_MERGE_FILE_INPUT_INIT;
 
-        ancestor.ptr  = base.c_str();
+        ancestor.ptr = base.c_str();
         ancestor.size = base.size();
         ancestor.mode = 0100644;
 
-        ours.ptr  = local.c_str();
+        ours.ptr = local.c_str();
         ours.size = local.size();
         ours.mode = 0100644;
 
-        theirs.ptr  = remote.c_str();
+        theirs.ptr = remote.c_str();
         theirs.size = remote.size();
         theirs.mode = 0100644;
 
         // Merge options
         git_merge_file_options opts = GIT_MERGE_FILE_OPTIONS_INIT;
         opts.flags = static_cast<git_merge_file_flag_t>(
-              GIT_MERGE_FILE_IGNORE_WHITESPACE
-            | GIT_MERGE_FILE_IGNORE_WHITESPACE_CHANGE
-            | GIT_MERGE_FILE_IGNORE_WHITESPACE_EOL
-            | GIT_MERGE_FILE_DIFF_PATIENCE
-            | GIT_MERGE_FILE_DIFF_MINIMAL
-            | GIT_MERGE_FILE_SIMPLIFY_ALNUM
-        );
+            GIT_MERGE_FILE_IGNORE_WHITESPACE | GIT_MERGE_FILE_IGNORE_WHITESPACE_CHANGE | GIT_MERGE_FILE_IGNORE_WHITESPACE_EOL | GIT_MERGE_FILE_DIFF_PATIENCE | GIT_MERGE_FILE_DIFF_MINIMAL | GIT_MERGE_FILE_SIMPLIFY_ALNUM);
 
         // Perform the merge
         git_merge_file_result result;

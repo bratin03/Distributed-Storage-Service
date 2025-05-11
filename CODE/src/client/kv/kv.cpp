@@ -1,3 +1,15 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #include "kv.hpp"
 #include <cstdio>
 
@@ -177,17 +189,17 @@ namespace distributed_KV
         return res;
     }
 
-    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token,const std::string &device_id, const std::string &value)
+    Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &device_id, const std::string &value)
     {
         printf("Setting key: %s with value: %s\n", key.c_str(), value.c_str());
-        nlohmann::json payload = {{"key", key}, {"token", token},{"device_id",device_id}, {"value", value}};
+        nlohmann::json payload = {{"key", key}, {"token", token}, {"device_id", device_id}, {"value", value}};
         nlohmann::json message = {{"type", "put"}, {"payload", payload}};
         return tryServers(servers, "put", message);
     }
 
-    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token,const std::string &device_id)
+    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &device_id)
     {
-        return set(servers, key, token,device_id, DELETE_VALUE);
+        return set(servers, key, token, device_id, DELETE_VALUE);
     }
 
     FileKVResponse setFile(const std::vector<std::string> &servers,
@@ -204,7 +216,7 @@ namespace distributed_KV
             j["version_number"] = version;
             j["data"] = file_content;
             // Use filePath as the key
-            Response setResp = set(servers, filePath, token,device_id, j.dump());
+            Response setResp = set(servers, filePath, token, device_id, j.dump());
             response.success = setResp.success;
             if (setResp.success)
             {
@@ -258,7 +270,7 @@ namespace distributed_KV
                               const std::string &device_id)
     {
         FileKVResponse response;
-        Response delResp = del(servers, filePath, token,device_id);
+        Response delResp = del(servers, filePath, token, device_id);
         response.success = delResp.success;
         if (delResp.success)
         {

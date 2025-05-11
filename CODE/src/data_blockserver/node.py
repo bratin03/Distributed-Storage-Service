@@ -1,3 +1,15 @@
+"""
+CS60002 - Distributed Systems
+Term Project - Spring 2025
+
+* Author 1: Bratin Mondal (21CS10016)
+* Author 2: Soukhin Nayek (21CS10062)
+* Author 3: Swarnabh Mandal (21CS10068)
+
+* Department of Computer Science and Engineering
+* Indian Institute of Technology, Kharagpur
+"""
+
 import sys
 import threading
 import time
@@ -9,7 +21,7 @@ CANDIDATE = 1
 LEADER = 2
 
 
-class Node():
+class Node:
     def __init__(self, fellow, my_ip):
         self.addr = my_ip
         self.fellow = fellow
@@ -54,17 +66,12 @@ class Node():
         # till everyone has voted
         # or I am the leader
         for voter in self.fellow:
-            threading.Thread(target=self.ask_for_vote,
-                             args=(voter, self.term)).start()
+            threading.Thread(target=self.ask_for_vote, args=(voter, self.term)).start()
 
     # request vote to other servers during given election term
     def ask_for_vote(self, voter, term):
         # need to include self.commitIdx, only up-to-date candidate could win
-        message = {
-            "term": term,
-            "commitIdx": self.commitIdx,
-            "staged": self.staged
-        }
+        message = {"term": term, "commitIdx": self.commitIdx, "staged": self.staged}
         route = "vote_req"
         while self.status == CANDIDATE and self.term == term:
             reply = utils.send(voter, route, message)
@@ -92,8 +99,11 @@ class Node():
         # decline all non-up-to-date candidate's vote request as well
         # but update term all the time, not reset timeout during decision
         # also vote for someone that has our staged version or a more updated one
-        if self.term < term and self.commitIdx <= commitIdx and (
-                staged or (self.staged == staged)):
+        if (
+            self.term < term
+            and self.commitIdx <= commitIdx
+            and (staged or (self.staged == staged))
+        ):
             self.reset_timeout()
             self.term = term
             return True, self.term
@@ -111,7 +121,7 @@ class Node():
             self.handle_put(self.staged)
 
         for each in self.fellow:
-            t = threading.Thread(target=self.send_heartbeat, args=(each, ))
+            t = threading.Thread(target=self.send_heartbeat, args=(each,))
             t.start()
 
     def update_follower_commitIdx(self, follower):
@@ -121,7 +131,7 @@ class Node():
             "term": self.term,
             "addr": self.addr,
             "action": "commit",
-            "payload": self.log[-1]
+            "payload": self.log[-1],
         }
         reply = utils.send(follower, route, first_message)
         if reply and reply.json()["commitIdx"] < self.commitIdx:
@@ -139,8 +149,9 @@ class Node():
             start = time.time()
             reply = utils.send(follower, route, message)
             if reply:
-                self.heartbeat_reply_handler(reply.json()["term"],
-                                             reply.json()["commitIdx"])
+                self.heartbeat_reply_handler(
+                    reply.json()["term"], reply.json()["commitIdx"]
+                )
             delta = time.time() - start
             # keep the heartbeat constant even if the network speed is varying
             time.sleep((cfg.HB_TIME - delta) / 1000)
@@ -250,13 +261,14 @@ class Node():
             "addr": self.addr,
             "payload": payload,
             "action": "log",
-            "commitIdx": self.commitIdx
+            "commitIdx": self.commitIdx,
         }
 
         # spread log  to everyone
         log_confirmations = [False] * len(self.fellow)
-        threading.Thread(target=self.spread_update,
-                         args=(log_message, log_confirmations)).start()
+        threading.Thread(
+            target=self.spread_update, args=(log_message, log_confirmations)
+        ).start()
         while sum(log_confirmations) + 1 < self.majority:
             waited += 0.0005
             time.sleep(0.0005)
@@ -270,11 +282,12 @@ class Node():
             "addr": self.addr,
             "payload": payload,
             "action": "commit",
-            "commitIdx": self.commitIdx
+            "commitIdx": self.commitIdx,
         }
         self.commit()
-        threading.Thread(target=self.spread_update,
-                         args=(commit_message, None, self.lock)).start()
+        threading.Thread(
+            target=self.spread_update, args=(commit_message, None, self.lock)
+        ).start()
         print("majority reached, replied to client, sending message to commit")
         return True
 

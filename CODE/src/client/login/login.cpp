@@ -1,3 +1,15 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #include "login.hpp"
 #include "../load_config/load_config.hpp"
 
@@ -159,7 +171,7 @@ namespace login
         }
     }
 
-    json makeRequest(std::string &ip, unsigned short &port, const std::string &path,  json &payload)
+    json makeRequest(std::string &ip, unsigned short &port, const std::string &path, json &payload)
     {
         // In payload add field "device_id"
         payload["device_id"] = serverUtils::device_id;

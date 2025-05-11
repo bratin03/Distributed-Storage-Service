@@ -1,3 +1,15 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #pragma once
 
 #include <string>
@@ -35,7 +47,7 @@ namespace distributed_KV
     Response tryServers(const std::vector<std::string> &servers, const std::string &reqType, const nlohmann::json &message);
     Response get(const std::vector<std::string> &servers, const std::string &key, const std::string &token);
     Response set(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &device_id, const std::string &value);
-    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token,const std::string &device_id);
+    Response del(const std::vector<std::string> &servers, const std::string &key, const std::string &token, const std::string &device_id);
 
     // A simple response structure for file-based operations.
     struct FileKVResponse

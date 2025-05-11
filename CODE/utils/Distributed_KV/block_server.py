@@ -1,3 +1,15 @@
+"""
+CS60002 - Distributed Systems
+Term Project - Spring 2025
+
+* Author 1: Bratin Mondal (21CS10016)
+* Author 2: Soukhin Nayek (21CS10062)
+* Author 3: Swarnabh Mandal (21CS10068)
+
+* Department of Computer Science and Engineering
+* Indian Institute of Technology, Kharagpur
+"""
+
 from node import Node
 from node import FOLLOWER, LEADER
 from flask import Flask, request, jsonify
@@ -9,10 +21,10 @@ app = Flask(__name__)
 
 
 # value_get is the flask handle
-@app.route("/request", methods=['GET'])
+@app.route("/request", methods=["GET"])
 def value_get():
     payload = request.json["payload"]
-    reply = {"code": 'fail', 'payload': payload}
+    reply = {"code": "fail", "payload": payload}
     if n.status == LEADER:
         # request handle, reply is a dictionary
         result = n.handle_get(payload)
@@ -24,24 +36,28 @@ def value_get():
     return jsonify(reply)
 
 
-@app.route("/request", methods=['PUT'])
+@app.route("/request", methods=["PUT"])
 def value_put():
     payload = request.json["payload"]
-    reply = {"code": 'fail'}
+    reply = {"code": "fail"}
 
     if n.status == LEADER:
         new_payload = payload.copy()
         existing_payload = n.handle_get(payload)
 
-        if existing_payload is not None and existing_payload["value"] != "__DELETE__" and new_payload["value"] != "__DELETE__":
+        if (
+            existing_payload is not None
+            and existing_payload["value"] != "__DELETE__"
+            and new_payload["value"] != "__DELETE__"
+        ):
 
             existing_value = json.loads(existing_payload["value"])
             existing_version = int(existing_value["version_number"])
-            
+
             new_payload["value"] = json.loads(new_payload["value"])
             new_version = int(new_payload["value"]["version_number"])
-            
-            print("-->",existing_version," -- ",new_version)
+
+            print("-->", existing_version, " -- ", new_version)
             if existing_version != new_version:
                 reply = {"code": "fail", "message": "Version mismatch"}
                 return jsonify(reply)
@@ -62,7 +78,7 @@ def value_put():
 
 
 # we reply to vote request
-@app.route("/vote_req", methods=['POST'])
+@app.route("/vote_req", methods=["POST"])
 def vote_req():
     # also need to let me know whether up-to-date or not
     term = request.json["term"]
@@ -73,7 +89,7 @@ def vote_req():
     return jsonify(message)
 
 
-@app.route("/heartbeat", methods=['POST'])
+@app.route("/heartbeat", methods=["POST"])
 def heartbeat():
     term, commitIdx = n.heartbeat_follower(request.json)
     # return anyway, if nothing received by leader, we are dead
@@ -82,7 +98,7 @@ def heartbeat():
 
 
 # disable flask logging
-log = logging.getLogger('werkzeug')
+log = logging.getLogger("werkzeug")
 log.disabled = True
 
 if __name__ == "__main__":
@@ -97,7 +113,7 @@ if __name__ == "__main__":
                 ip_list.append(ip.strip())
         my_ip = ip_list.pop(index)
 
-        http, host, port = my_ip.split(':')
+        http, host, port = my_ip.split(":")
         # initialize node with ip list and its own ip
         n = Node(ip_list, my_ip)
         app.run(host="0.0.0.0", port=int(port), debug=False)

@@ -1,8 +1,20 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #include "authentication.hpp"
 
 namespace Authentication
 {
-    std::optional<std::string> verify_jwt(const std::string& token)
+    std::optional<std::string> verify_jwt(const std::string &token)
     {
         MyLogger::debug("Inside verify_jwt");
 
@@ -24,25 +36,25 @@ namespace Authentication
         {
             auto decoded = jwt::decode(token);
             auto verifier = jwt::verify()
-                .allow_algorithm(jwt::algorithm::rs256(Initiation::public_key))
-                .with_issuer("auth-server");
+                                .allow_algorithm(jwt::algorithm::rs256(Initiation::public_key))
+                                .with_issuer("auth-server");
 
             verifier.verify(decoded);
             return decoded.get_payload_claim("userID").as_string();
         }
-        catch (const std::system_error& e)
+        catch (const std::system_error &e)
         {
             MyLogger::error("JWT Verification Failed: " + std::string(e.what()));
             return std::nullopt;
         }
-        catch (const std::exception& e)
+        catch (const std::exception &e)
         {
             MyLogger::error("JWT Verification Failed: " + std::string(e.what()));
             return std::nullopt;
         }
     }
 
-    bool authenticate_request(const httplib::Request& req, httplib::Response& res, std::string& userID)
+    bool authenticate_request(const httplib::Request &req, httplib::Response &res, std::string &userID)
     {
         MyLogger::debug("Inside authenticate_request");
 

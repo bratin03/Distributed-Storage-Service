@@ -1,3 +1,15 @@
+"""
+CS60002 - Distributed Systems
+Term Project - Spring 2025
+
+* Author 1: Bratin Mondal (21CS10016)
+* Author 2: Soukhin Nayek (21CS10062)
+* Author 3: Swarnabh Mandal (21CS10068)
+
+* Department of Computer Science and Engineering
+* Indian Institute of Technology, Kharagpur
+"""
+
 from node import Node
 from node import FOLLOWER, LEADER
 from auth import verify_jwt
@@ -118,7 +130,9 @@ def value_put():
                 if result:
                     reply = {"code": "success", "payload": new_payload}
                     logging.info(f"File created successfully: {key}")
-                    notification_handler({"user_id": userID, "path": filePath, "device_id": deviceID})
+                    notification_handler(
+                        {"user_id": userID, "path": filePath, "device_id": deviceID}
+                    )
                 else:
                     reply = {"code": "fail", "message": "Creation failed"}
                     logging.warning(f"File creation failed: {key}")
@@ -149,7 +163,9 @@ def value_put():
                 if result:
                     reply = {"code": "success", "payload": new_payload}
                     logging.info(f"File updated successfully: {key}")
-                    notification_handler({"user_id": userID, "path": filePath, "device_id": deviceID})
+                    notification_handler(
+                        {"user_id": userID, "path": filePath, "device_id": deviceID}
+                    )
                 else:
                     reply = {"code": "fail", "message": "Update failed"}
                     logging.warning(f"File update failed: {key}")

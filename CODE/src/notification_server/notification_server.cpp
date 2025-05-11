@@ -1,3 +1,15 @@
+/*
+    CS60002 - Distributed Systems
+    Term Project - Spring 2025
+
+    * Author 1: Bratin Mondal (21CS10016)
+    * Author 2: Soukhin Nayek (21CS10062)
+    * Author 3: Swarnabh Mandal (21CS10068)
+
+    * Department of Computer Science and Engineering
+    * Indian Institute of Technology, Kharagpur
+*/
+
 #include "logger/Mylogger.h"
 #include "notification_server.hpp"
 #include <chrono>
@@ -59,13 +71,13 @@ namespace notification
                 subscriptions_.erase(it);
             }
         }
-        try 
+        try
         {
             auto json_obj = json::parse(message);
             std::string formatted_message = json_obj.dump(4); // pretty print with 4-space indent
             MyLogger::info("Broadcasting notification to user: " + user_id + " with JSON message:\n" + formatted_message);
-        } 
-        catch (json::parse_error& e) 
+        }
+        catch (json::parse_error &e)
         {
             MyLogger::error("Failed to parse JSON message for user: " + user_id + ". Raw message: " + message);
         }
