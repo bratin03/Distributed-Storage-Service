@@ -11,32 +11,31 @@
 */
 
 #pragma once
-#include <string>
-#include <vector>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
 
-class DeletionManager
-{
-public:
+class DeletionManager {
+   public:
     static DeletionManager instance;
 
     void enqueue(const std::string &key);
     ~DeletionManager();
 
-private:
+   private:
     DeletionManager();
     DeletionManager(const DeletionManager &) = delete;
     DeletionManager &operator=(const DeletionManager &) = delete;
 
     void process();
 
-    std::vector<std::string> deletion_queue;
-    std::mutex queue_mutex;
-    std::condition_variable cv;
-    std::thread worker_thread;
-    bool stop_thread;
-    const size_t BATCH_SIZE_THRESHOLD;
-    const unsigned int MAX_WAIT_TIME;
+    std::vector<std::string> _deletionQueue;
+    std::mutex _queueMutex;
+    std::condition_variable _cv;
+    std::thread _workerThread;
+    bool _stopThread;
+    const size_t _BATCH_SIZE_THRESHOLD;
+    const unsigned int _MAX_WAIT_TIME;
 };

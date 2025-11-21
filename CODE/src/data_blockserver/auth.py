@@ -12,7 +12,10 @@ Term Project - Spring 2025
 
 import jwt
 import logging
-from jwt import InvalidTokenError, ExpiredSignatureError, InvalidSignatureError
+try:
+    from jwt import InvalidTokenError, ExpiredSignatureError, InvalidSignatureError
+except ImportError:
+    from jwt.exceptions import InvalidTokenError, ExpiredSignatureError, InvalidSignatureError
 from typing import Optional
 
 logger = logging.getLogger("AuthLogger")
@@ -50,9 +53,7 @@ def verify_jwt(token: str) -> Optional[str]:
     logger.debug("JWT Format Correct")
 
     try:
-        decoded = jwt.decode(
-            token, _get_public_key(), algorithms=["RS256"], issuer=ISSUER
-        )
+        decoded = jwt.decode(token, _get_public_key(), algorithms=["RS256"], issuer=ISSUER)
         return decoded.get("userID")
     except (ExpiredSignatureError, InvalidSignatureError, InvalidTokenError) as e:
         logger.error(f"JWT Verification Failed: {str(e)}")

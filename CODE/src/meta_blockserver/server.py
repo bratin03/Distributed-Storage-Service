@@ -19,6 +19,13 @@ import logging
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("requests").setLevel(logging.WARNING)
 
+# Setup basic logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+
 app = Flask(__name__)
 
 
@@ -47,8 +54,7 @@ def value_put():
         # request handle, reply is a dictionary
         result = n.handle_put(payload)
         if result:
-            print("-----------------Result: \n")
-            sys.stdout.flush()
+            logging.info("-----------------Result: Success")
             reply = {"code": "success"}
     elif n.status == FOLLOWER:
         # redirect request
@@ -100,4 +106,4 @@ if __name__ == "__main__":
         host = host.lstrip("/")
         app.run(host, port=int(port), debug=False)
     else:
-        print("usage: python server.py <index> <ip_list_file>")
+        logging.error("usage: python server.py <index> <ip_list_file>")

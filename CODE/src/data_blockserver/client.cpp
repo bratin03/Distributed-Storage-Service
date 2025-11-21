@@ -1,23 +1,20 @@
-#include <iostream>
-#include <vector>
 #include <fstream>
+#include <iostream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <stdexcept>
-#include <nlohmann/json.hpp>
+#include <vector>
+
 #include "../../../utils/Distributed_KV/client_lib/kv.hpp"
 
 using json = nlohmann::json;
 using namespace distributed_KV;
 
 // Helper function to read the entire config file and extract servers, filePath, and version.
-void loadConfig(const std::string &configPath,
-                std::vector<std::string> &servers,
-                std::string &filePath,
-                std::string &version)
-{
+void loadConfig(const std::string &configPath, std::vector<std::string> &servers,
+                std::string &filePath, std::string &version) {
     std::ifstream configFile(configPath);
-    if (!configFile)
-    {
+    if (!configFile) {
         throw std::runtime_error("Failed to open config file: " + configPath);
     }
 
@@ -25,42 +22,31 @@ void loadConfig(const std::string &configPath,
     configFile >> config;
 
     // Read servers array from config
-    if (config.contains("servers") && config["servers"].is_array())
-    {
-        for (const auto &server : config["servers"])
-        {
+    if (config.contains("servers") && config["servers"].is_array()) {
+        for (const auto &server : config["servers"]) {
             servers.push_back(server.get<std::string>());
         }
-    }
-    else
-    {
+    } else {
         throw std::runtime_error("Invalid config file: 'servers' key missing or not an array");
     }
 
     // Read filePath and version from config
-    if (config.contains("filePath") && config.contains("version"))
-    {
+    if (config.contains("filePath") && config.contains("version")) {
         filePath = config["filePath"].get<std::string>();
         version = config["version"].get<std::string>();
-    }
-    else
-    {
+    } else {
         throw std::runtime_error("Config file must contain 'filePath' and 'version' keys.");
     }
 }
 
-int main()
-{
+int main() {
     std::vector<std::string> servers;
     std::string filePath, version;
 
-    try
-    {
+    try {
         // Load configuration from config.json
         loadConfig("config.json", servers, filePath, version);
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         std::cerr << "Error loading config: " << e.what() << std::endl;
         return 1;
     }
@@ -68,24 +54,18 @@ int main()
     // Set the file content into the distributed KV store using filePath as the key.
     std::cout << "Setting file '" << filePath << "' with version " << version << "...\n";
     auto setResp = setFile(servers, filePath, version);
-    if (setResp.success)
-    {
+    if (setResp.success) {
         std::cout << "Set succeeded: " << setResp.value << std::endl;
-    }
-    else
-    {
+    } else {
         std::cerr << "Set failed: " << setResp.err << std::endl;
     }
 
     // Get the stored file content.
     std::cout << "Getting file '" << filePath << "'...\n";
     auto getResp = getFile(servers, filePath);
-    if (getResp.success)
-    {
+    if (getResp.success) {
         std::cout << "Get succeeded: " << getResp.value << std::endl;
-    }
-    else
-    {
+    } else {
         std::cerr << "Get failed: " << getResp.err << std::endl;
     }
 
