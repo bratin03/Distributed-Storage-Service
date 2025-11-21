@@ -19,7 +19,13 @@ sudo apt install -y \
     pkg-config \
     libgdk-pixbuf2.0-dev \
     shared-mime-info \
-    xterm
+    xterm \
+    cmake \
+    python3-pip \
+    python3-flask \
+    python3-requests \
+    python3-venv \
+    clang-format
 
 echo "=== Configuring Environment Variables ==="
 PKG_CONFIG_LINE='export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH'

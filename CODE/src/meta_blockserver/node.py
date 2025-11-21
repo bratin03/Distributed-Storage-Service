@@ -99,11 +99,7 @@ class Node:
         # decline all non-up-to-date candidate's vote request as well
         # but update term all the time, not reset timeout during decision
         # also vote for someone that has our staged version or a more updated one
-        if (
-            self.term < term
-            and self.commitIdx <= commitIdx
-            and (staged or (self.staged == staged))
-        ):
+        if self.term < term and self.commitIdx <= commitIdx and (staged or (self.staged == staged)):
             self.reset_timeout()
             self.term = term
             return True, self.term
@@ -149,9 +145,7 @@ class Node:
             start = time.time()
             reply = utils.send(follower, route, message)
             if reply:
-                self.heartbeat_reply_handler(
-                    reply.json()["term"], reply.json()["commitIdx"]
-                )
+                self.heartbeat_reply_handler(reply.json()["term"], reply.json()["commitIdx"])
             delta = time.time() - start
             # keep the heartbeat constant even if the network speed is varying
             time.sleep((cfg.HB_TIME - delta) / 1000)
@@ -267,9 +261,7 @@ class Node:
 
         # spread log  to everyone
         log_confirmations = [False] * len(self.fellow)
-        threading.Thread(
-            target=self.spread_update, args=(log_message, log_confirmations)
-        ).start()
+        threading.Thread(target=self.spread_update, args=(log_message, log_confirmations)).start()
         while sum(log_confirmations) + 1 < self.majority:
             waited += 0.0005
             time.sleep(0.0005)
@@ -286,9 +278,7 @@ class Node:
             "commitIdx": self.commitIdx,
         }
         self.commit()
-        threading.Thread(
-            target=self.spread_update, args=(commit_message, None, self.lock)
-        ).start()
+        threading.Thread(target=self.spread_update, args=(commit_message, None, self.lock)).start()
         print("majority reached, replied to client, sending message to commit")
         return True
 

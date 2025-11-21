@@ -10,39 +10,34 @@
     * Indian Institute of Technology, Kharagpur
 */
 
-#include "logger/Mylogger.h" // Custom logger header.
-#include <iostream>
-#include "http_listener.hpp"
-#include "notification_server.hpp" // Assuming your NotificationServer is defined here.
 #include <boost/asio.hpp>
-#include <nlohmann/json.hpp>
 #include <fstream>
+#include <iostream>
+#include <nlohmann/json.hpp>
 #include <thread>
+
+#include "http_listener.hpp"
+#include "Mylogger.hpp"        // Custom logger header.
+#include "notification_server.hpp"  // Assuming your NotificationServer is defined here.
 
 using json = nlohmann::json;
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     std::string config_file = "config.json";
-    if (argc > 1)
-        config_file = argv[1];
+    if (argc > 1) config_file = argv[1];
 
     // Load configuration.
     std::ifstream ifs(config_file);
-    if (!ifs)
-    {
+    if (!ifs) {
         MyLogger::error("Failed to open " + config_file);
         return 1;
     }
     json config;
-    try
-    {
+    try {
         ifs >> config;
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         MyLogger::error("Error parsing " + config_file + ": " + std::string(e.what()));
         return 1;
     }
@@ -58,16 +53,16 @@ int main(int argc, char *argv[])
     asio::io_context ioc;
 
     // Create and run the notification server.
-    notification::NotificationServer notifServer(ioc, ip, static_cast<unsigned short>(notification_port), timeout_seconds);
+    notification::NotificationServer notifServer(
+        ioc, ip, static_cast<unsigned short>(notification_port), timeout_seconds);
     notifServer.run();
-    MyLogger::info("Notification server is running on " + ip + ":" + std::to_string(notification_port));
+    MyLogger::info("Notification server is running on " + ip + ":" +
+                   std::to_string(notification_port));
 
     // Lambda that handles the HTTP request by parsing the JSON
     // to retrieve the target user and then broadcasting the exact JSON it receives.
-    auto httpRequestHandler = [&notifServer](const std::string &body)
-    {
-        try
-        {
+    auto httpRequestHandler = [&notifServer](const std::string &body) {
+        try {
             auto parsed = json::parse(body);
             std::string target_user = parsed.value("user_id", "default");
             MyLogger::info("Received HTTP request to broadcast to user " + target_user);
@@ -75,15 +70,14 @@ int main(int argc, char *argv[])
             // Broadcast the exact JSON payload received.
             notifServer.broadcastNotification(target_user, body);
             MyLogger::info("Broadcasted notification for user " + target_user);
-        }
-        catch (const std::exception &e)
-        {
+        } catch (const std::exception &e) {
             MyLogger::error("Error parsing HTTP request body: " + std::string(e.what()));
         }
     };
 
     // Instantiate the HTTP listener.
-    http_listener::HttpListener httpListener(ioc, ip, static_cast<unsigned short>(http_port), httpRequestHandler);
+    http_listener::HttpListener httpListener(ioc, ip, static_cast<unsigned short>(http_port),
+                                             httpRequestHandler);
     httpListener.run();
     MyLogger::info("HTTP Listener is running on " + ip + ":" + std::to_string(http_port));
 

@@ -13,86 +13,82 @@
 #ifndef METADATA_HPP
 #define METADATA_HPP
 
+#include <memory>
+#include <set>
 #include <string>
 #include <vector>
-#include <set>
-#include <memory>
+
+#include "Mylogger.hpp"
 #include "nlohmann/json.hpp"
 #include "rocksdb/db.h"
-#include "../logger/Mylogger.hpp"
 
-namespace metadata
-{
+namespace metadata {
 
-  // Set the database instance for the namespace.
-  void setDatabase(std::shared_ptr<rocksdb::DB> db);
+// Set the database instance for the namespace.
+void setDatabase(std::shared_ptr<rocksdb::DB> db);
 
-  // Retrieve the database instance.
-  std::shared_ptr<rocksdb::DB> getDatabase();
+// Retrieve the database instance.
+std::shared_ptr<rocksdb::DB> getDatabase();
 
-  // ----------------------------------
-  // File_Metadata Class Declaration
-  // ----------------------------------
+// ----------------------------------
+// File_Metadata Class Declaration
+// ----------------------------------
 
-  class File_Metadata
-  {
-  public:
+class File_Metadata {
+   public:
     File_Metadata();
     explicit File_Metadata(const std::string &name);
-    File_Metadata(const std::string &name, uint64_t size,
-                  const std::string &version, const std::string &content_hash,
-                  const std::string &file_content);
+    File_Metadata(const std::string &name, uint64_t size, const std::string &version,
+                  const std::string &content_hash, const std::string &file_content);
 
     bool storeToDatabase();
     bool loadFromDatabase();
 
-    std::string fileName;
-    uint64_t fileSize;
-    std::string version;
-    std::string content_hash;
-    std::string file_content;
-  };
+    std::string _fileName;
+    uint64_t _fileSize;
+    std::string _version;
+    std::string _contentHash;
+    std::string _fileContent;
+};
 
-  // -------------------------------------
-  // Directory_Metadata Class Declaration
-  // -------------------------------------
+// -------------------------------------
+// Directory_Metadata Class Declaration
+// -------------------------------------
 
-  class Directory_Metadata
-  {
-  public:
+class Directory_Metadata {
+   public:
     Directory_Metadata();
     explicit Directory_Metadata(const std::string &name);
-    Directory_Metadata(const std::string &name,
-                       const std::vector<std::string> &files,
+    Directory_Metadata(const std::string &name, const std::vector<std::string> &files,
                        const std::vector<std::string> &directories);
 
     bool storeToDatabase();
     bool loadFromDatabase();
 
-    std::vector<std::string> files;
-    std::vector<std::string> directories;
-    std::string directoryName;
-  };
+    std::vector<std::string> _files;
+    std::vector<std::string> _directories;
+    std::string _directoryName;
+};
 
-  // -------------------------
-  // Prefix Scan Declaration
-  // -------------------------
+// -------------------------
+// Prefix Scan Declaration
+// -------------------------
 
-  std::set<std::string> prefix_scan(const std::string &prefix);
+std::set<std::string> prefix_scan(const std::string &prefix);
 
-  // -------------------------
-  // Remove File/Directory Declaration
-  // -------------------------
-  bool removeFileFromDatabase(const std::string &key);
-  bool removeDirectoryFromDatabase(const std::string &key);
+// -------------------------
+// Remove File/Directory Declaration
+// -------------------------
+bool removeFileFromDatabase(const std::string &key);
+bool removeDirectoryFromDatabase(const std::string &key);
 
-  // Add/Remove file/directory from parent directory
-  bool addFileToDirectory(const std::string &key);
-  bool removeFileFromDirectory(const std::string &key);
+// Add/Remove file/directory from parent directory
+bool addFileToDirectory(const std::string &key);
+bool removeFileFromDirectory(const std::string &key);
 
-  bool addDirectoryToDirectory(const std::string &key);
-  bool removeDirectoryFromDirectory(const std::string &key);
+bool addDirectoryToDirectory(const std::string &key);
+bool removeDirectoryFromDirectory(const std::string &key);
 
-} // namespace metadata
+}  // namespace metadata
 
-#endif // METADATA_HPP
+#endif  // METADATA_HPP

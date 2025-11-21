@@ -141,9 +141,7 @@ def value_put():
         else:
             existing_payload = json.loads(existing_payload)
             existing_version = int(existing_payload["version_number"])
-            logging.debug(
-                f"Current version: {existing_version}, New version: {new_version}"
-            )
+            logging.debug(f"Current version: {existing_version}, New version: {new_version}")
 
             # Move the version print to logging
             logging.info(
@@ -197,9 +195,7 @@ def notification_handler(message):
         # Send a POST request with the message as JSON payload.
         response = requests.post(url, json=message)
         response.raise_for_status()  # Raises an HTTPError if the status is 4xx or 5xx.
-        logging.info(
-            f"Notification sent successfully to {url}. Response: {response.text}"
-        )
+        logging.info(f"Notification sent successfully to {url}. Response: {response.text}")
     except requests.RequestException as e:
         logging.error(f"Failed to send notification to {url}. Error: {e}")
 

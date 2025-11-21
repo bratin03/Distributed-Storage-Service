@@ -10,14 +10,14 @@
     * Indian Institute of Technology, Kharagpur
 */
 
-#include "cache.hpp"
-#include <iostream>
-#include <vector>
 #include <chrono>
+#include <iostream>
 #include <thread>
+#include <vector>
 
-int main()
-{
+#include "cache.hpp"
+
+int main() {
     // Create a cache instance with a default TTL of 500ms and a maximum size (in bytes) of 100.
     cache::Cache myCache(std::chrono::milliseconds(500), 100);
 
@@ -29,17 +29,13 @@ int main()
 
     // Immediately retrieve and print the value.
     std::vector<std::string> result = myCache.get("greeting");
-    if (!result.empty())
-    {
+    if (!result.empty()) {
         std::cout << "Cache hit: ";
-        for (const auto &s : result)
-        {
+        for (const auto &s : result) {
             std::cout << s << " ";
         }
         std::cout << std::endl;
-    }
-    else
-    {
+    } else {
         std::cout << "Cache miss." << std::endl;
     }
 
@@ -48,15 +44,11 @@ int main()
 
     // Try to get the key "greeting" again after the TTL has expired.
     result = myCache.get("greeting");
-    if (result.empty())
-    {
+    if (result.empty()) {
         std::cout << "Cache entry expired." << std::endl;
-    }
-    else
-    {
+    } else {
         std::cout << "Cache hit: ";
-        for (const auto &s : result)
-        {
+        for (const auto &s : result) {
             std::cout << s << " ";
         }
         std::cout << std::endl;
